@@ -182,12 +182,25 @@
         </div>
       </div>
     </div>
-  </div>
-</div>
-
 <script id="chart-data" type="application/json">
   {{ chart_data | tojson }}
 </script>
+
+<!-- Add a centered modal with animated spinner -->
+<div class="modal fade" id="speedtestRunningModal" tabindex="-1" aria-labelledby="speedtestRunningModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body text-center py-4">
+        <div class="spinner-border text-primary mb-3" role="status">
+          <span class="visually-hidden">Загрузка...</span>
+        </div>
+        <h5 class="modal-title" id="speedtestRunningModalLabel">Выполняется тест скорости...</h5>
+        <p class="text-muted mb-0">Это может занять несколько минут. Пожалуйста, подождите.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   const CHART_DATA = JSON.parse(document.getElementById('chart-data').textContent);
   document.addEventListener('DOMContentLoaded', async () => {
@@ -423,21 +436,5 @@
     if (rangeEl) rangeEl.addEventListener('change', drawDetail);
   });
 </script>
-
-<!-- Add a centered modal with animated spinner -->
-<div class="modal fade" id="speedtestRunningModal" tabindex="-1" aria-labelledby="speedtestRunningModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="speedtestRunningModalLabel">Speedtest in progress...</h5>
-      </div>
-      <div class="modal-body text-center">
-        <div class="spinner-border" role="status">
-          <span class="visually-hidden">Loading...</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
 {% endblock %}
