@@ -120,6 +120,18 @@ def create_webhook_app(bot_controller_instance):
     csrf = CSRFProtect()
     csrf.init_app(flask_app)
 
+    # Кастомная функция render_template с поддержкой шаблонов
+    def render_template_with_theme(template_name, **context):
+        """Render template with theme support."""
+        try:
+            from shop_bot.data_manager.database import get_setting
+            current_template = get_setting('panel_template') or 'Default'
+            template_path = f"{current_template}/{template_name}"
+            return render_template(template_path, **context)
+        except Exception:
+            # Fallback to default template if theme fails
+            return render_template(f"Default/{template_name}", **context)
+
     @flask_app.context_processor
     def inject_current_year():
         # Добавляем csrf_token в шаблоны для meta и скрытых полей
@@ -148,7 +160,7 @@ def create_webhook_app(bot_controller_instance):
                 return redirect(url_for('dashboard_page'))
             else:
                 flash('Неверный логин или пароль', 'danger')
-        return render_template('login.html')
+        return render_template_with_theme('login.html')
 
     @flask_app.route('/logout', methods=['POST'])
     @login_required
@@ -242,7 +254,7 @@ def create_webhook_app(bot_controller_instance):
         chart_data = get_daily_stats_for_charts(days=30)
         common_data = get_common_template_data()
         
-        return render_template(
+        return render_template_with_theme(
             'dashboard.html',
             stats=stats,
             chart_data=chart_data,
@@ -273,7 +285,7 @@ def create_webhook_app(bot_controller_instance):
             "host_count": len(get_all_hosts())
         }
         common_data = get_common_template_data()
-        return render_template('partials/dashboard_stats.html', stats=stats, **common_data)
+        return render_template_with_theme('partials/dashboard_stats.html', stats=stats, **common_data)
 
     @flask_app.route('/dashboard/transactions.partial')
     @login_required
@@ -281,7 +293,7 @@ def create_webhook_app(bot_controller_instance):
         page = request.args.get('page', 1, type=int)
         per_page = 8
         transactions, total_transactions = get_paginated_transactions(page=page, per_page=per_page)
-        return render_template('partials/dashboard_transactions.html', transactions=transactions)
+        return render_template_with_theme('partials/dashboard_transactions.html', transactions=transactions)
 
     @flask_app.route('/dashboard/charts.json')
     @login_required
@@ -300,7 +312,7 @@ def create_webhook_app(bot_controller_instance):
             'hosts': hosts,
             'ssh_targets': ssh_targets
         })
-        return render_template('monitor.html', **common_data)
+        return render_template_with_theme('monitor.html', **common_data)
 
     @flask_app.route('/monitor/local.json')
     @login_required
@@ -351,7 +363,7 @@ def create_webhook_app(bot_controller_instance):
         page = request.args.get('page', 1, type=int)
         per_page = 12
         tickets, total = get_tickets_paginated(page=page, per_page=per_page, status=status)
-        return render_template('partials/support_table.html', tickets=tickets)
+        return render_template_with_theme('partials/support_table.html', tickets=tickets)
 
     @flask_app.route('/support/open-count.partial')
     @login_required
@@ -395,7 +407,7 @@ def create_webhook_app(bot_controller_instance):
 
         total_pages = max(1, ceil(total / per_page)) if total else 1
         common_data = get_common_template_data()
-        return render_template(
+        return render_template_with_theme(
             'users.html',
             users=users,
             current_page=page,
@@ -424,7 +436,7 @@ def create_webhook_app(bot_controller_instance):
             except Exception:
                 user['balance'] = 0.0
                 user['referrals'] = []
-        return render_template('partials/users_table.html', users=users)
+        return render_template_with_theme('partials/users_table.html', users=users)
 
     @flask_app.route('/users/<int:user_id>/balance/adjust', methods=['POST'])
     @login_required
@@ -486,7 +498,7 @@ def create_webhook_app(bot_controller_instance):
         except Exception:
             users = []
         common_data = get_common_template_data()
-        return render_template('admin_keys.html', keys=keys, hosts=hosts, users=users, **common_data)
+        return render_template_with_theme('admin_keys.html', keys=keys, hosts=hosts, users=users, **common_data)
 
     # Partial: admin keys table tbody
     @flask_app.route('/admin/keys/table.partial')
@@ -497,7 +509,7 @@ def create_webhook_app(bot_controller_instance):
             keys = get_all_keys()
         except Exception:
             keys = []
-        return render_template('partials/admin_keys_table.html', keys=keys)
+        return render_template_with_theme('partials/admin_keys_table.html', keys=keys)
 
     @flask_app.route('/admin/hosts/<host_name>/plans')
     @login_required
@@ -1041,7 +1053,7 @@ def create_webhook_app(bot_controller_instance):
             except Exception:
                 pass
         common_data = get_common_template_data()
-        return render_template('admin_balance.html', user=user, balance=balance, referrals=referrals, **common_data)
+        return render_template_with_theme('admin_balance.html', user=user, balance=balance, referrals=referrals, **common_data)
 
     @flask_app.route('/support')
     @login_required
@@ -1055,7 +1067,7 @@ def create_webhook_app(bot_controller_instance):
         closed_count = get_closed_tickets_count()
         all_count = get_all_tickets_count()
         common_data = get_common_template_data()
-        return render_template(
+        return render_template_with_theme(
             'support.html',
             tickets=tickets,
             current_page=page,
@@ -1167,7 +1179,7 @@ def create_webhook_app(bot_controller_instance):
 
         messages = get_ticket_messages(ticket_id)
         common_data = get_common_template_data()
-        return render_template('ticket.html', ticket=ticket, messages=messages, **common_data)
+        return render_template_with_theme('ticket.html', ticket=ticket, messages=messages, **common_data)
 
     @flask_app.route('/support/<int:ticket_id>/messages.json')
     @login_required
@@ -1285,7 +1297,7 @@ def create_webhook_app(bot_controller_instance):
             backups = []
 
         common_data = get_common_template_data()
-        return render_template('settings.html', settings=current_settings, hosts=hosts, backups=backups, **common_data)
+        return render_template_with_theme('settings.html', settings=current_settings, hosts=hosts, backups=backups, **common_data)
 
     # --- DB Backup/Restore ---
     @flask_app.route('/admin/db/backup', methods=['POST'])
@@ -1915,7 +1927,7 @@ def create_webhook_app(bot_controller_instance):
     def button_constructor_page():
         """Button constructor page"""
         template_data = get_common_template_data()
-        return render_template('button_constructor.html', **template_data)
+        return render_template_with_theme('button_constructor.html', **template_data)
 
     # --- Button Constructor API ---
     @flask_app.route('/api/button-configs', methods=['GET', 'POST'])

@@ -273,6 +273,8 @@ def initialize_db():
                 "yoomoney_client_id": None,
                 "yoomoney_client_secret": None,
                 "yoomoney_redirect_uri": None,
+                # Panel template
+                "panel_template": "Default",
             }
             run_migration()
             for key, value in default_settings.items():
