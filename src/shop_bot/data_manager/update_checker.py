@@ -26,8 +26,11 @@ def check_git_available() -> bool:
             cwd=PROJECT_ROOT
         )
         return result.returncode == 0
+    except FileNotFoundError:
+        logger.debug("Git не установлен в системе")
+        return False
     except Exception as e:
-        logger.error(f"Ошибка проверки git: {e}")
+        logger.debug(f"Ошибка проверки git: {e}")
         return False
 
 
