@@ -8,6 +8,7 @@ import { initializeGlobalAutoRefresh, initializeSoftAutoUpdate } from './modules
 import { initializeBackupRestoreUI } from './modules/backup.js';
 import { initializeSoftSelects } from './modules/soft-select.js';
 import { initializeInlineEdit } from './modules/inline-edit.js';
+import { initializeSidebar } from './modules/sidebar.js';
 
 // Page-specific modules
 import { initializeUsersPage } from './modules/users.js';
@@ -19,6 +20,9 @@ import { initializeAdminKeysPage } from './modules/admin-keys.js';
 
 // Initialize all modules when DOM is ready
 document.addEventListener('DOMContentLoaded', function () {
+    // Sidebar (always initialize first)
+    initializeSidebar();
+    
     // Core UI components
     initTooltipsWithin();
     initializeThemeToggle();

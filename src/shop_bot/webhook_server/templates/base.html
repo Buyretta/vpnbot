@@ -27,85 +27,116 @@
         <!-- Optional: zoom/pan plugin for Chart.js -->
         <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.umd.min.js"></script>
 	</head>
-	<body data-page="{{ request.endpoint }}" class="layout-boxed">
-		<div class="container">
-			<header class="main-header">
-				<div class="brand">
+	<body data-page="{{ request.endpoint }}" class="layout-sidebar">
+		<!-- Sidebar -->
+		<aside class="sidebar">
+			<div class="sidebar-header">
+				<div class="sidebar-brand">
 					<a href="{{ url_for('dashboard_page') }}" class="brand-link">
 						<img src="{{ url_for('static', filename='img/logo.png') }}" alt="Логотип" />
 						<span id="brand-title" class="ms-2">{{ brand_title or 'T‑Shift VPN' }}</span>
 					</a>
 					<button type="button" id="brand-edit" class="btn btn-outline-secondary btn-sm btn-glass" title="Сменить название">✏️</button>
 				</div>
-				<nav class="navigation justify-content-center">
-					<a href="{{ url_for('dashboard_page') }}" class="nav-link {% if request.endpoint == 'dashboard_page' %}active{% endif %}">Главная</a>
-					<a href="{{ url_for('users_page') }}" class="nav-link {% if request.endpoint == 'users_page' %}active{% endif %}">Пользователи</a>
-					<a href="{{ url_for('admin_keys_page') }}" class="nav-link {% if request.endpoint == 'admin_keys_page' %}active{% endif %}">Ключи</a>
-					<a href="{{ url_for('support_list_page') }}" class="nav-link {% if request.endpoint in ['support_list_page', 'support_ticket_page'] %}active{% endif %}">
-						Поддержка
-						<span class="open-tickets-badge" data-fetch-url="{{ url_for('support_open_count_partial') }}" data-fetch-interval="10000">
-							{% if open_tickets_count and open_tickets_count > 0 %}
-							<span class="badge bg-green-lt" title="Открытые тикеты">
-								<span class="status-dot status-dot-animated bg-green"></span>{{ open_tickets_count }}
+			</div>
+			
+			<nav class="sidebar-nav">
+				<ul class="nav-list">
+					<li class="nav-item">
+						<a href="{{ url_for('dashboard_page') }}" class="nav-link {% if request.endpoint == 'dashboard_page' %}active{% endif %}">
+							<i class="ti ti-home-2"></i>
+							<span>Главная</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('users_page') }}" class="nav-link {% if request.endpoint == 'users_page' %}active{% endif %}">
+							<i class="ti ti-users"></i>
+							<span>Пользователи</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('admin_keys_page') }}" class="nav-link {% if request.endpoint == 'admin_keys_page' %}active{% endif %}">
+							<i class="ti ti-key"></i>
+							<span>Ключи</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('support_list_page') }}" class="nav-link {% if request.endpoint in ['support_list_page', 'support_ticket_page'] %}active{% endif %}">
+							<i class="ti ti-headset"></i>
+							<span>Поддержка</span>
+							<span class="open-tickets-badge" data-fetch-url="{{ url_for('support_open_count_partial') }}" data-fetch-interval="10000">
+								{% if open_tickets_count and open_tickets_count > 0 %}
+								<span class="badge bg-green-lt" title="Открытые тикеты">
+									<span class="status-dot status-dot-animated bg-green"></span>{{ open_tickets_count }}
+								</span>
+								{% endif %}
 							</span>
-							{% endif %}
-						</span>
-					</a>
-					<a href="{{ url_for('monitor_page') }}" class="nav-link {% if request.endpoint == 'monitor_page' %}active{% endif %}">Монитор</a>
-					<a href="{{ url_for('button_constructor_page') }}" class="nav-link {% if request.endpoint == 'button_constructor_page' %}active{% endif %}">Конструктор</a>
-					<a href="{{ url_for('settings_page') }}" class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}">Настройки</a>
-				</nav>
-				<div class="bm float-end">
-					<input id="burger" type="checkbox" />
-					<label for="burger" class="burger_img"></label>
-					<nav class="burger-menu">
-						<ul>
-							<li><a href="{{ url_for('dashboard_page') }}">Главная</a></li>
-							<li><a href="{{ url_for('users_page') }}">Пользователи</a></li>
-							<li><a href="{{ url_for('admin_keys_page') }}">Ключи</a></li>
-							<li><a href="{{ url_for('support_list_page') }}">Поддержка</a></li>
-							<li><a href="{{ url_for('monitor_page') }}">Монитор</a></li>
-							<li><a href="{{ url_for('button_constructor_page') }}">Конструктор</a></li>
-							<li><a href="{{ url_for('settings_page') }}">Настройки</a></li>
-						</ul>
-					</nav>
-				</div>
-				<div class="header-controls">
-					<div class="bot-control">
-						{% if bot_status.is_running %}
-						<p class="status-running"><span class="status-dot status-dot-animated bg-green"></span>Статус: <strong>Запущен</strong></p>
-						<form action="{{ url_for('stop_both_bots_route') }}" method="post">
-							<button type="submit" class="btn btn-danger btn-sm">
-								Остановить
-							</button>
-						</form>
-						{% else %}
-						<p class="status-stopped"><span class="status-dot"></span>Статус: <strong>Остановлен</strong></p>
-						{% if all_settings_ok and support_settings_ok %}
-						<form action="{{ url_for('start_both_bots_route') }}" method="post">
-							<button type="submit" class="btn btn-success btn-sm">
-								Запустить
-							</button>
-						</form>
-						{% else %}
-						<button class="btn btn-secondary btn-sm" disabled>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('monitor_page') }}" class="nav-link {% if request.endpoint == 'monitor_page' %}active{% endif %}">
+							<i class="ti ti-chart-line"></i>
+							<span>Монитор</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('button_constructor_page') }}" class="nav-link {% if request.endpoint == 'button_constructor_page' %}active{% endif %}">
+							<i class="ti ti-apps"></i>
+							<span>Конструктор</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('settings_page') }}" class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}">
+							<i class="ti ti-settings"></i>
+							<span>Настройки</span>
+						</a>
+					</li>
+				</ul>
+			</nav>
+			
+			<div class="sidebar-footer">
+				<div class="bot-control">
+					{% if bot_status.is_running %}
+					<p class="status-running"><span class="status-dot status-dot-animated bg-green"></span>Статус: <strong>Запущен</strong></p>
+					<form action="{{ url_for('stop_both_bots_route') }}" method="post">
+						<button type="submit" class="btn btn-danger btn-sm">
+							Остановить
+						</button>
+					</form>
+					{% else %}
+					<p class="status-stopped"><span class="status-dot"></span>Статус: <strong>Остановлен</strong></p>
+					{% if all_settings_ok and support_settings_ok %}
+					<form action="{{ url_for('start_both_bots_route') }}" method="post">
+						<button type="submit" class="btn btn-success btn-sm">
 							Запустить
 						</button>
-						{% endif %} {% endif %}
-					</div>
-
-					<div class="user-session-controls">
-						<span>Вы вошли в систему.</span>
-						<form action="{{ url_for('logout_page') }}" method="post" style="display: inline">
-							<button type="submit" class="btn btn-outline-secondary">Выйти</button>
-						</form>
-						<button type="button" id="theme-toggle" class="btn btn-outline-primary ms-2" title="Переключить тему">
-							<span class="theme-label">Тёмная</span>
-						</button>
-					</div>
+					</form>
+					{% else %}
+					<button class="btn btn-secondary btn-sm" disabled>
+						Запустить
+					</button>
+					{% endif %} {% endif %}
 				</div>
-			</header>
+				
+				<div class="user-controls">
+					<span>Вы вошли в систему.</span>
+					<form action="{{ url_for('logout_page') }}" method="post" style="display: inline">
+						<button type="submit" class="btn btn-outline-secondary">Выйти</button>
+					</form>
+					<button type="button" id="theme-toggle" class="btn btn-outline-primary ms-2" title="Переключить тему">
+						<span class="theme-label">Тёмная</span>
+					</button>
+				</div>
+			</div>
+		</aside>
 
+		<!-- Mobile sidebar toggle -->
+		<button type="button" class="sidebar-toggle" id="sidebar-toggle">
+			<i class="ti ti-menu-2"></i>
+		</button>
+
+		<!-- Main content -->
+		<main class="main-content">
 			<!-- Toast container -->
 			<div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;"></div>
 			{% with messages = get_flashed_messages(with_categories=true) %}
@@ -133,7 +164,7 @@
 								function showNow(){
 									try {
 										cont.querySelectorAll('.toast').forEach(el => new bootstrap.Toast(el, { delay: 4000, autohide: true }).show());
-									} catch(_) {}
+									} catch (_) {}
 								}
 								if (window.bootstrap && window.bootstrap.Toast) {
 									showNow();
@@ -148,8 +179,8 @@
 				{% endif %}
 			{% endwith %}
 
-			<main>{% block content %}{% endblock %}</main>
-		</div>
+			{% block content %}{% endblock %}
+		</main>
 
 		<footer class="main-footer"></footer>
 
