@@ -2067,6 +2067,44 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"YooMoney webhook ошибка: {e}", exc_info=True)
             return 'Error', 500
 
+    # --- System Update Checker ---
+    @flask_app.route('/api/updates/check')
+    @login_required
+    def check_updates():
+        """Проверить наличие обновлений через git."""
+        from shop_bot.data_manager.update_checker import check_updates_available
+        result = check_updates_available()
+        return jsonify(result)
+
+    @flask_app.route('/api/updates/perform', methods=['POST'])
+    @login_required
+    def perform_update():
+        """Выполнить обновление через git pull."""
+        from shop_bot.data_manager.update_checker import perform_update
+        result = perform_update()
+        return jsonify(result)
+
+    @flask_app.route('/api/updates/status')
+    @login_required
+    def update_status():
+        """Получить статус последней проверки обновлений."""
+        try:
+            from shop_bot.data_manager.database import get_setting
+            last_check = get_setting('last_update_check')
+            update_available = get_setting('update_available')
+            latest_version = get_setting('latest_version')
+            commits_behind = get_setting('commits_behind')
+            
+            return jsonify({
+                "last_check": last_check,
+                "update_available": update_available == "true",
+                "latest_version": latest_version,
+                "commits_behind": int(commits_behind) if commits_behind else 0
+            })
+        except Exception as e:
+            logger.error(f"Ошибка получения статуса обновлений: {e}")
+            return jsonify({"error": str(e)}), 500
+
     return flask_app
 
 

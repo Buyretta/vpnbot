@@ -31,6 +31,10 @@ _last_backup_run_at: datetime | None = None
 METRICS_INTERVAL_SECONDS = 5 * 60
 _last_metrics_run_at: datetime | None = None
 
+# Проверка обновлений (каждые 6 часов)
+UPDATE_CHECK_INTERVAL_SECONDS = 6 * 3600
+_last_update_check_run_at: datetime | None = None
+
 def format_time_left(hours: int) -> str:
     if hours >= 24:
         days = hours // 24
@@ -271,6 +275,9 @@ async def periodic_subscription_check(bot_controller: BotController):
             await _maybe_run_periodic_speedtests()
             await _maybe_collect_host_metrics()
 
+            # Периодическая проверка обновлений системы
+            await _maybe_run_update_check()
+
             # Ежедневный автобэкап БД с отправкой админам
             bot = bot_controller.get_bot_instance() if bot_controller.get_status().get("is_running") else None
             if bot:
@@ -361,6 +368,33 @@ async def _maybe_run_daily_backup(bot: Bot):
         _last_backup_run_at = now
     except Exception as e:
         logger.error(f"Scheduler: Критическая ошибка при создании и отправке бэкапа: {e}", exc_info=True)
+
+async def _maybe_run_update_check():
+    global _last_update_check_run_at
+    now = datetime.now()
+    if _last_update_check_run_at and (now - _last_update_check_run_at).total_seconds() < UPDATE_CHECK_INTERVAL_SECONDS:
+        return
+    try:
+        from shop_bot.data_manager.update_checker import check_updates_available
+        result = check_updates_available()
+        _last_update_check_run_at = now
+        
+        # Сохраняем результат в базу данных
+        from datetime import datetime
+        database.update_setting("last_update_check", now.isoformat())
+        database.update_setting("update_available", "true" if result.get("available") else "false")
+        if result.get("latest_version"):
+            database.update_setting("latest_version", result.get("latest_version"))
+        if result.get("commits_behind"):
+            database.update_setting("commits_behind", str(result.get("commits_behind")))
+        
+        if result.get("available"):
+            logger.info(f"Scheduler: Доступно обновление! Текущая: {result.get('current_version')}, Новая: {result.get('latest_version')}, Коммитов: {result.get('commits_behind')}")
+        else:
+            logger.debug("Scheduler: Обновлений не найдено")
+    except Exception as e:
+        logger.error(f"Scheduler: Ошибка проверки обновлений: {e}", exc_info=True)
+
 async def _maybe_collect_host_metrics():
     global _last_metrics_run_at
     now = datetime.now()
