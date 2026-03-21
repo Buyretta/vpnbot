@@ -21,6 +21,7 @@
 
 		<!-- Project custom styles -->
 		<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+		<link rel="stylesheet" href="{{ url_for('static', filename='css/liquid-glass.css') }}" />
 
 		<!-- Charts -->
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -36,7 +37,7 @@
 						<img src="{{ url_for('static', filename='img/logo.png') }}" alt="Логотип" />
 						<span id="brand-title" class="ms-2">{{ brand_title or 'T‑Shift VPN' }}</span>
 					</a>
-					<button type="button" id="brand-edit" class="btn btn-outline-secondary btn-sm btn-glass" title="Сменить название">
+					<button type="button" id="brand-edit" class="btn-liquid-glass btn-sm" title="Сменить название">
 						<i class="ti ti-edit"></i>
 					</button>
 				</div>
@@ -101,7 +102,7 @@
 					{% if bot_status.is_running %}
 					<p class="status-running"><span class="status-dot status-dot-animated bg-green"></span>Статус: <strong>Запущен</strong></p>
 					<form action="{{ url_for('stop_both_bots_route') }}" method="post">
-						<button type="submit" class="btn btn-danger btn-sm btn-glass">
+						<button type="submit" class="btn-liquid-glass btn-danger btn-sm">
 							<i class="ti ti-player-stop"></i> Остановить
 						</button>
 					</form>
@@ -109,12 +110,12 @@
 					<p class="status-stopped"><span class="status-dot"></span>Статус: <strong>Остановлен</strong></p>
 					{% if all_settings_ok and support_settings_ok %}
 					<form action="{{ url_for('start_both_bots_route') }}" method="post">
-						<button type="submit" class="btn btn-success btn-sm btn-glass">
+						<button type="submit" class="btn-liquid-glass btn-success btn-sm">
 							<i class="ti ti-player-play"></i> Запустить
 						</button>
 					</form>
 					{% else %}
-					<button class="btn btn-secondary btn-sm btn-glass" disabled>
+					<button class="btn-liquid-glass btn-secondary btn-sm" disabled>
 						<i class="ti ti-player-play"></i> Запустить
 					</button>
 					{% endif %} {% endif %}
@@ -122,7 +123,7 @@
 				
 				<div class="user-controls">
 					<form action="{{ url_for('logout_page') }}" method="post" class="logout-form">
-						<button type="submit" class="btn btn-outline-danger btn-glass btn-logout">
+						<button type="submit" class="btn-liquid-glass btn-danger btn-logout">
 							<i class="ti ti-logout"></i> Выйти
 						</button>
 					</form>
@@ -142,7 +143,7 @@
 		</aside>
 
 		<!-- Mobile sidebar toggle -->
-		<button type="button" class="sidebar-toggle" id="sidebar-toggle">
+		<button type="button" class="sidebar-toggle btn-liquid-glass" id="sidebar-toggle">
 			<i class="ti ti-menu-2"></i>
 		</button>
 
