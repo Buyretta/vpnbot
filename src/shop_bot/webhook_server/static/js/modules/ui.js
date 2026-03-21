@@ -26,7 +26,7 @@ export function initializeThemeToggle() {
     const saved = localStorage.getItem(THEME_KEY);
     if (saved) {
         root.setAttribute('data-bs-theme', saved);
-        updateThemeToggle(saved);
+        updateButtonIcon(saved);
     }
     
     btn.addEventListener('click', () => {
@@ -34,13 +34,13 @@ export function initializeThemeToggle() {
         const next = current === 'light' ? 'dark' : 'light';
         root.setAttribute('data-bs-theme', next);
         localStorage.setItem(THEME_KEY, next);
-        updateThemeToggle(next);
+        updateButtonIcon(next);
     });
     
-    function updateThemeToggle(theme) {
-        // iOS-style toggle automatically updates via CSS
-        // The thumb position and icons change based on [data-bs-theme] attribute
-        // No JavaScript needed for visual updates
+    function updateButtonIcon(theme) {
+        const label = btn.querySelector('.theme-label');
+        if (!label) return;
+        label.textContent = theme === 'dark' ? 'Светлая' : 'Тёмная';
     }
 }
 
