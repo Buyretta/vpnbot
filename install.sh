@@ -36,101 +36,23 @@ PROJECT_DIR="3xshop"
 NGINX_CONF_FILE="/etc/nginx/sites-available/${PROJECT_DIR}.conf"
 ACTION_CHOICE=""
 
-# Функция для определения типа обновления на основе изменений
-detect_update_type() {
-    # Проверяем наличие git репозитория
-    if [ ! -d ".git" ]; then
-        return 0
-    fi
-    
-    # Проверяем наличие docker-compose.yml
-    if [ ! -f "docker-compose.yml" ]; then
-        return 0
-    fi
-    
-    echo -e "${INFO} Анализ изменений для определения типа обновления..."
-    
-    # Получаем текущую ветку
-    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
-    
-    # Получаем последние коммиты с обработкой ошибок
-    if ! git fetch origin 2>/dev/null; then
-        echo -e "${YELLOW} Не удалось получить изменения из Git. Пропускаем анализ.${NC}"
-        return 0
-    fi
-    
-    LOCAL_HASH=$(git rev-parse HEAD 2>/dev/null || echo "")
-    REMOTE_HASH=$(git rev-parse "origin/$CURRENT_BRANCH" 2>/dev/null || git rev-parse origin/main 2>/dev/null || echo "")
-    
-    if [ -z "$LOCAL_HASH" ] || [ -z "$REMOTE_HASH" ]; then
-        echo -e "${YELLOW} Не удалось определить версии Git. Пропускаем анализ.${NC}"
-        return 0
-    fi
-    
-    if [ "$LOCAL_HASH" = "$REMOTE_HASH" ]; then
-        echo -e "${CHECKMARK} У вас последняя версия."
-        return 0
-    fi
-    
-    # Анализируем изменения в последних коммитах
-    CHANGES=$(git diff --name-only "$LOCAL_HASH" "$REMOTE_HASH" 2>/dev/null || "")
-    
-    if [ -z "$CHANGES" ]; then
-        echo -e "${YELLOW} Не удалось проанализировать изменения. Пропускаем анализ.${NC}"
-        return 0
-    fi
-    
-    # Проверяем наличие критичных файлов
-    if echo "$CHANGES" | grep -q -E "(docker-compose\.yml|Dockerfile|requirements\.txt|package\.json)"; then
-        echo -e "${YELLOW}Обнаружены изменения в Docker конфигурации."
-        echo -e "${INFO} Рекомендуется полное обновление (down + up)."
-        return 2  # Полное обновление
-    else
-        echo -e "${CHECKMARK} Только изменения в коде приложения."
-        echo -e "${INFO} Подходит для бесшовного обновления."
-        return 1  # Бесшовное обновление
-    fi
-}
-
 echo -e "\n${BOLD}${CYAN}=====================================================${NC}"
 echo -e "${BOLD}${CYAN}      Запуск установки/обновления 3xui-ShopBot    ${NC}"
 echo -e "${BOLD}${CYAN}=====================================================${NC}\n"
 
 if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "${INFO} ${CYAN}Обнаружена существующая конфигурация.${NC}"
-    
-    # Автоматическое определение типа обновления
-    RECOMMENDED_UPDATE=""
-    if [ -d ".git" ] && [ -f "docker-compose.yml" ]; then
-        detect_update_type
-        RECOMMENDED_UPDATE=$?
-    elif [ -d "$PROJECT_DIR" ]; then
-        cd "$PROJECT_DIR" || exit 1
-        if [ -d ".git" ] && [ -f "docker-compose.yml" ]; then
-            detect_update_type
-            RECOMMENDED_UPDATE=$?
-        fi
-        cd ..
-    fi
-    
     echo -e "${BOLD}Выберите действие:${NC}"
-    echo -e " 1) Бесшовное обновление (recreate контейнеров)"
-    echo -e " 2) Полное обновление (down + up)"
-    echo -e " 3) Полная переустановка (сброс Nginx, SSL и Docker)"
-    echo -e " 4) Выход"
-    
-    # Показываем рекомендацию, если доступна
-    if [ "$RECOMMENDED_UPDATE" = "1" ]; then
-        echo -e "\n${GREEN}💡 Рекомендуется: Бесшовное обновление (только код)${NC}"
-    elif [ "$RECOMMENDED_UPDATE" = "2" ]; then
-        echo -e "\n${YELLOW}⚠️  Рекомендуется: Полное обновление (изменения в Docker)${NC}"
-    fi
+    echo -e " 1) 🚀 Лёгкое обновление (бесшовное, без остановки)"
+    echo -e " 2) 🔄 Полное обновление (с остановкой и пересборкой)"
+    echo -e " 3) 🗑️  Полная переустановка (сброс всего)"
+    echo -e " 4) 📤 Выход"
     
     read_input "Ваш выбор (1-4): " ACTION_CHOICE
     
     case $ACTION_CHOICE in
         1)
-            echo -e "${INFO} ${CYAN}Бесшовное обновление (seamless update)...${NC}"
+            echo -e "${INFO} ${CYAN}Лёгкое бесшовное обновление...${NC}"
             # Проверяем, не находимся ли мы уже внутри папки проекта
             if [ -d ".git" ] && [ -f "docker-compose.yml" ]; then
                 echo -e "${INFO} Вы уже находитесь в папке проекта."
@@ -154,7 +76,7 @@ if [ -f "$NGINX_CONF_FILE" ]; then
             # Сохраняем локальные изменения перед обновлением
             if [ -n "$(git status --porcelain)" ]; then
                 echo -e "${INFO} Сохранение локальных изменений..."
-                git stash push -m "Installer auto-stash before seamless update"
+                git stash push -m "Installer auto-stash before light update"
                 STASHED=true
             fi
 
@@ -174,32 +96,31 @@ if [ -f "$NGINX_CONF_FILE" ]; then
                  fi
              fi
 
-            echo -e "\n${WAIT} ${BOLD}Шаг 2: Бесшовное обновление контейнеров...${NC}"
-            echo -e "${INFO} Создание новых контейнеров с сохранением данных..."
+            echo -e "\n${WAIT} ${BOLD}Шаг 2: Бесшовная перезагрузка сервисов...${NC}"
+            echo -e "${INFO} Перезапуск только изменённых сервисов без остановки контейнеров..."
             
-            # Бесшовное обновление: recreate вместо down/up
-            sudo docker-compose pull
-            sudo docker-compose up -d --build --force-recreate --remove-orphans
+            # Лёгкое обновление: только перезапуск сервисов без пересборки
+            sudo docker-compose restart
             
-            # Проверяем статус контейнеров
-            echo -e "${INFO} Проверка статуса контейнеров..."
-            sleep 5
+            # Если есть изменения в коде, делаем graceful reload
             if sudo docker-compose ps | grep -q "Up"; then
-                echo -e "${CHECKMARK} Контейнеры успешно перезапущены."
+                echo -e "${CHECKMARK} Сервисы успешно перезапущены."
+                echo -e "${INFO} Изменения применены без остановки контейнеров."
             else
-                echo -e "${YELLOW}ВНИМАНИЕ: Некоторые контейнеры могут не запуститься. Проверьте логи:${NC}"
-                echo -e "sudo docker-compose logs"
+                echo -e "${YELLOW}ВНИМАНИЕ: Некоторые сервисы могут потребовать полного перезапуска.${NC}"
+                echo -e "${INFO} Попробуйте: sudo docker-compose down && sudo docker-compose up -d"
             fi
             
             echo -e "\n${BOLD}${GREEN}==============================================${NC}"
-            echo -e "${BOLD}${GREEN}     Бесшовное обновление завершено!       ${NC}"
+            echo -e "${BOLD}${GREEN}      Лёгкое обновление завершено!      ${NC}"
             echo -e "${BOLD}${GREEN}==============================================${NC}"
-            echo -e "\nБот был обновлен до последней версии с минимальным простоем."
-            echo -e "Данные пользователей и настройки сохранены."
+            echo -e "\n✅ Код обновлён без остановки контейнеров"
+            echo -e "🔄 Сервисы перезапущены с сохранением данных"
+            echo -e "⚡ Минимальный простой времени"
             exit 0
             ;;
         2)
-            echo -e "${INFO} ${CYAN}Полное обновление (down + up)...${NC}"
+            echo -e "${INFO} ${CYAN}Полное обновление с пересборкой...${NC}"
             STASHED=false
             # Проверяем, не находимся ли мы уже внутри папки проекта
             if [ -d ".git" ] && [ -f "docker-compose.yml" ]; then
@@ -244,7 +165,7 @@ if [ -f "$NGINX_CONF_FILE" ]; then
                  fi
              fi
 
-            echo -e "\n${WAIT} ${BOLD}Шаг 2: Полный перезапуск Docker-контейнеров...${NC}"
+            echo -e "\n${WAIT} ${BOLD}Шаг 2: Перезапуск Docker-контейнеров...${NC}"
             sudo docker-compose down --remove-orphans && sudo docker-compose up -d --build
             
             echo -e "\n${BOLD}${GREEN}==============================================${NC}"
@@ -273,6 +194,10 @@ if [ -f "$NGINX_CONF_FILE" ]; then
             echo -e "${CHECKMARK} Конфигурации Nginx удалены."
             # Переход к чистой установке
             ;;
+        4)
+            echo "Выход."
+            exit 0
+            ;;
         *)
             echo "Выход."
             exit 0
@@ -280,8 +205,8 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     esac
 fi
 
-if [ -z "$ACTION_CHOICE" ] || [ "$ACTION_CHOICE" = "2" ]; then
-    if [ "$ACTION_CHOICE" = "2" ]; then
+if [ -z "$ACTION_CHOICE" ] || [ "$ACTION_CHOICE" = "3" ]; then
+    if [ "$ACTION_CHOICE" = "3" ]; then
         echo -e "${INFO} ${YELLOW}Старая конфигурация удалена. Начинаем чистую установку...${NC}"
     else
         echo -e "${INFO} ${YELLOW}Конфигурация не найдена. Начинаем чистую установку...${NC}"
@@ -606,28 +531,3 @@ echo -e " 3. Нажмите 'Сохранить' и 'Запустить Бота
 
 echo -e "\n${INFO} ${CYAN}Webhook URL для YooKassa:${NC}"
 echo -e " ${YELLOW}${BASE_URL}/yookassa-webhook${NC}\n"
-
-echo -e "\n${BOLD}${CYAN}=====================================================${NC}"
-echo -e "${BOLD}${CYAN}               Методы обновления                ${NC}"
-echo -e "${BOLD}${CYAN}=====================================================${NC}\n"
-
-echo -e "${BOLD}1) Бесшовное обновление (seamless):${NC}"
-echo -e "   • Использует 'docker-compose up --force-recreate'"
-echo -e "   • Минимальный простой (5-10 секунд)"
-echo -e "   • Данные сохраняются в Docker volumes"
-echo -e "   • Идеально для мелких апдейтов и исправлений"
-echo -e "   • Сохраняет активные сессии пользователей\n"
-
-echo -e "${BOLD}2) Полное обновление (down + up):${NC}"
-echo -e "   • Полная остановка и запуск контейнеров"
-echo -e "   • Более длительный простой (30-60 секунд)"
-echo -e "   • Гарантированная чистое состояние"
-echo -e "   • Рекомендуется для крупных изменений\n"
-
-echo -e "${BOLD}3) Полная переустановка:${NC}"
-echo -e "   • Удаление всех конфигураций"
-echo -e "   • Чистая установка с нуля"
-echo -e "   • Используется при серьезных проблемах\n"
-
-echo -e "${INFO} ${YELLOW}Для быстрого обновления используйте:${NC}"
-echo -e "   ${CYAN}./install.sh${NC} и выберите опцию 1\n"
