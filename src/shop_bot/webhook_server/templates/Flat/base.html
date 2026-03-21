@@ -165,7 +165,30 @@
 		
 		<!-- Tabler JS -->
 		<script src="{{ url_for('static', filename='js/tabler.min.js') }}"></script>
-		
+	
+		<!-- CSRF Token для форм -->
+		<meta name="csrf-token" content="{{ csrf_token() }}">
+	
+		<script>
+		// Автоматическое добавление CSRF токена во все формы
+		document.addEventListener('DOMContentLoaded', function() {
+			const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+			if (csrfToken) {
+				// Добавляем CSRF токен во все формы
+				document.querySelectorAll('form').forEach(form => {
+					// Пропускаем формы с уже существующим CSRF
+					if (!form.querySelector('input[name="csrf_token"]')) {
+						const input = document.createElement('input');
+						input.type = 'hidden';
+						input.name = 'csrf_token';
+						input.value = csrfToken;
+						form.appendChild(input);
+					}
+				});
+			}
+		});
+		</script>
+	
 		{% block scripts %}{% endblock %}
 	</body>
 </html>

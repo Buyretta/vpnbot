@@ -1,5 +1,8 @@
 {% extends "Default/base.html" %} {% block title %}Главная страница{% endblock %} {% block content %}
 
+<!-- CSRF Token -->
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
 <style>
 	.flat-stats {
 		display: grid;

@@ -119,6 +119,7 @@
 			{% endwith %}
 			
 			<form method="post">
+				<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 				<div class="form-floating">
 					<input type="text" class="form-control" id="username" name="username" placeholder="Логин" required autofocus>
 					<label for="username">Логин</label>
