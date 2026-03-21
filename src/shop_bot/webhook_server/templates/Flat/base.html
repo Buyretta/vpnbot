@@ -2,17 +2,23 @@
 <html lang="ru" data-bs-theme="light">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
-		<meta name="description" content="3xui-shopbot - Панель управления VPN сервисом" />
-		<meta name="robots" content="noindex, nofollow" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>{% block title %}Панель управления{% endblock %}</title>
 		
 		<!-- Tabler CSS -->
 		<link rel="stylesheet" href="{{ url_for('static', filename='css/tabler.min.css') }}">
-		<link rel="stylesheet" href="{{ url_for('static', filename='css/tabler-icons.css') }}">
+		<link rel="stylesheet" href="{{ url_for('static', filename='css/tabler-flags.min.css') }}">
+		<link rel="stylesheet" href="{{ url_for('static', filename='css/tabler-payments.min.css') }}">
+		<link rel="stylesheet" href="{{ url_for('static', filename='css/tabler-vendors.min.css') }}">
+		<link rel="stylesheet" href="{{ url_for('static', filename='css/tabler-icons.min.css') }}">
 		
-		<!-- Custom styles -->
+		<!-- Project custom styles -->
 		<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+		
+		<!-- Charts -->
+		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+		
+		{% block head %}{% endblock %}
 		
 		<style>
 			/* Flat theme overrides */
@@ -48,11 +54,6 @@
 				box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
 			}
 			
-			.navbar-brand {
-				color: #1e293b !important;
-				font-weight: 600;
-			}
-			
 			.sidebar {
 				background: white !important;
 				border-right: 1px solid #e5e7eb !important;
@@ -60,9 +61,9 @@
 			
 			.nav-link {
 				color: #4b5563 !important;
-				border-radius: 6px;
-				margin: 0.25rem 0;
-				transition: all 0.2s ease;
+				border-radius: 8px !important;
+				margin: 0.25rem 0 !important;
+				transition: all 0.2s ease !important;
 			}
 			
 			.nav-link:hover {
@@ -79,7 +80,7 @@
 				background: white !important;
 				border: 1px solid #e5e7eb !important;
 				border-radius: 12px !important;
-				box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+				box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
 			}
 			
 			.btn {
@@ -155,40 +156,194 @@
 				color: #e2e8f0 !important;
 			}
 		</style>
-		
-		{% block head %}{% endblock %}
 	</head>
-	<body>
-		<div class="page">
+	<body data-page="{{ request.endpoint }}" class="layout-sidebar">
+		<!-- Sidebar -->
+		<aside class="sidebar">
+			<div class="sidebar-header">
+				<div class="sidebar-brand">
+					<a href="{{ url_for('dashboard_page') }}" class="brand-link">
+						<img src="{{ url_for('static', filename='img/logo.png') }}" alt="Логотип" />
+						<span id="brand-title" class="ms-2">{{ brand_title or 'T‑Shift VPN' }}</span>
+					</a>
+					<button type="button" id="brand-edit" class="btn btn-outline-secondary btn-sm" title="Сменить название">
+						<i class="ti ti-edit"></i>
+					</button>
+				</div>
+			</div>
+			
+			<nav class="sidebar-nav">
+				<ul class="nav-list">
+					<li class="nav-item">
+						<a href="{{ url_for('dashboard_page') }}" class="nav-link {% if request.endpoint == 'dashboard_page' %}active{% endif %}">
+							<i class="ti ti-home-2"></i>
+							<span>Главная</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('users_page') }}" class="nav-link {% if request.endpoint == 'users_page' %}active{% endif %}">
+							<i class="ti ti-users"></i>
+							<span>Пользователи</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('admin_keys_page') }}" class="nav-link {% if request.endpoint == 'admin_keys_page' %}active{% endif %}">
+							<i class="ti ti-key"></i>
+							<span>Ключи</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('support_list_page') }}" class="nav-link {% if request.endpoint in ['support_list_page', 'support_ticket_page'] %}active{% endif %}">
+							<i class="ti ti-headset"></i>
+							<span>Поддержка</span>
+							<span class="open-tickets-badge" data-fetch-url="{{ url_for('support_open_count_partial') }}" data-fetch-interval="10000">
+								{% if open_tickets_count and open_tickets_count > 0 %}
+								<span class="badge bg-green-lt" title="Открытые тикеты">
+									<span class="status-dot status-dot-animated bg-green"></span>{{ open_tickets_count }}
+								</span>
+								{% endif %}
+							</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('monitor_page') }}" class="nav-link {% if request.endpoint == 'monitor_page' %}active{% endif %}">
+							<i class="ti ti-chart-line"></i>
+							<span>Монитор</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('button_constructor_page') }}" class="nav-link {% if request.endpoint == 'button_constructor_page' %}active{% endif %}">
+							<i class="ti ti-apps"></i>
+							<span>Конструктор</span>
+						</a>
+					</li>
+					<li class="nav-item">
+						<a href="{{ url_for('settings_page') }}" class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}">
+							<i class="ti ti-settings"></i>
+							<span>Настройки</span>
+						</a>
+					</li>
+				</ul>
+			</nav>
+			
+			<div class="sidebar-footer">
+				<div class="bot-control">
+					{% if bot_status.is_running %}
+					<p class="status-running"><span class="status-dot status-dot-animated bg-green"></span>Статус: <strong>Запущен</strong></p>
+					<form action="{{ url_for('stop_both_bots_route') }}" method="post">
+						<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+						<button type="submit" class="btn btn-danger btn-sm">
+							<i class="ti ti-player-stop"></i> Остановить
+						</button>
+					</form>
+					{% else %}
+					<p class="status-stopped"><span class="status-dot"></span>Статус: <strong>Остановлен</strong></p>
+					{% if all_settings_ok and support_settings_ok %}
+					<form action="{{ url_for('start_both_bots_route') }}" method="post">
+						<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+						<button type="submit" class="btn btn-success btn-sm">
+							<i class="ti ti-player-play"></i> Запустить
+						</button>
+					</form>
+					{% else %}
+					<button class="btn btn-secondary btn-sm" disabled>
+						<i class="ti ti-player-play"></i> Запустить
+					</button>
+					{% endif %} {% endif %}
+				</div>
+				
+				<div class="user-controls">
+					<span>Вы вошли в систему.</span>
+					<form action="{{ url_for('logout_page') }}" method="post" style="display: inline;">
+						<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+						<button type="submit" class="btn btn-outline-secondary">Выйти</button>
+					</form>
+					<button type="button" id="theme-toggle" class="btn btn-outline-primary ms-2" title="Переключить тему">
+						<i class="ti ti-moon"></i>
+						<span class="theme-label">Тёмная</span>
+					</button>
+				</div>
+			</div>
+		</aside>
+
+		<!-- Mobile sidebar toggle -->
+		<button type="button" class="sidebar-toggle" id="sidebar-toggle">
+			<i class="ti ti-menu-2"></i>
+		</button>
+
+		<!-- Main content -->
+		<main class="main-content">
+			<!-- Toast container -->
+			<div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;"></div>
+			{% with messages = get_flashed_messages(with_categories=true) %}
+				{% if messages %}
+					<script id="flash-messages" type="application/json">{{ messages|tojson }}</script>
+					<script>
+						(function(){
+							const cont = document.getElementById('toast-container');
+							const dataTag = document.getElementById('flash-messages');
+							if (!cont || !dataTag) return;
+							let items = [];
+							try { items = JSON.parse(dataTag.textContent || '[]'); } catch(_){ items = []; }
+
+							function renderToasts(){
+								items.forEach(function(item){
+									const category = item[0] || 'secondary';
+									const message = item[1] || '';
+									const el = document.createElement('div');
+									el.className = 'toast fade align-items-center text-bg-' + (category === 'danger' ? 'danger' : (category === 'success' ? 'success' : (category === 'warning' ? 'warning' : 'secondary')));
+									el.setAttribute('role','alert'); el.setAttribute('aria-live','assertive'); el.setAttribute('aria-atomic','true');
+									el.innerHTML = '<div class="d-flex"><div class="toast-body">'+ message +'</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>';
+									cont.appendChild(el);
+								});
+								// Если bootstrap уже загружен — показываем сразу, иначе ждёмся события load
+								function showNow(){
+									try {
+										cont.querySelectorAll('.toast').forEach(el => new bootstrap.Toast(el, { delay: 4000, autohide: true }).show());
+									} catch (_) {}
+								}
+								if (window.bootstrap && window.bootstrap.Toast) {
+									showNow();
+								} else {
+									window.addEventListener('load', showNow, { once: true });
+								}
+							}
+
+							renderToasts();
+						})();
+					</script>
+				{% endif %}
+			{% endwith %}
+			
 			{% block content %}{% endblock %}
-		</div>
+		</main>
 		
 		<!-- Tabler JS -->
 		<script src="{{ url_for('static', filename='js/tabler.min.js') }}"></script>
-	
+		
 		<!-- CSRF Token для форм -->
 		<meta name="csrf-token" content="{{ csrf_token() }}">
-	
+		
 		<script>
-		// Автоматическое добавление CSRF токена во все формы
-		document.addEventListener('DOMContentLoaded', function() {
-			const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-			if (csrfToken) {
-				// Добавляем CSRF токен во все формы
-				document.querySelectorAll('form').forEach(form => {
-					// Пропускаем формы с уже существующим CSRF
-					if (!form.querySelector('input[name="csrf_token"]')) {
-						const input = document.createElement('input');
-						input.type = 'hidden';
-						input.name = 'csrf_token';
-						input.value = csrfToken;
-						form.appendChild(input);
-					}
-				});
-			}
-		});
+			// Автоматическое добавление CSRF токена во все формы
+			document.addEventListener('DOMContentLoaded', function() {
+				const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+				if (csrfToken) {
+					// Добавляем CSRF токен во все формы
+					document.querySelectorAll('form').forEach(form => {
+						// Пропускаем формы с уже существующим CSRF
+						if (!form.querySelector('input[name="csrf_token"]')) {
+							const input = document.createElement('input');
+							input.type = 'hidden';
+							input.name = 'csrf_token';
+							input.value = csrfToken;
+							form.appendChild(input);
+						}
+					});
+				}
+			});
 		</script>
-	
+		
 		{% block scripts %}{% endblock %}
 	</body>
 </html>
