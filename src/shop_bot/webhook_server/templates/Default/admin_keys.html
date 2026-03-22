@@ -37,20 +37,20 @@
               <div class="mb-3">
                 <div class="btn-group w-100" role="group">
                   <input type="radio" class="btn-check" name="btn-key-type" id="btn-type-personal" checked>
-                  <label class="btn btn-outline-primary btn-sm" for="btn-type-personal">Личный</label>
+                  <label class="btn btn-outline-primary" for="btn-type-personal">Личный</label>
                   <input type="radio" class="btn-check" name="btn-key-type" id="btn-type-gift">
-                  <label class="btn btn-outline-purple btn-sm" for="btn-type-gift">Подарок</label>
+                  <label class="btn btn-outline-purple" for="btn-type-gift">Подарок</label>
                 </div>
               </div>
 
               <!-- Пользователь -->
               <div class="mb-3" id="group_user">
                 <label class="form-label small mb-1">Пользователь</label>
-                <div class="input-group input-group-sm">
+                <div class="input-group">
                   <span class="input-group-text"><i class="ti ti-user"></i></span>
                   <input type="text" class="form-control" id="user_id" name="user_id" placeholder="ID или @username" required />
                 </div>
-                <div id="user-suggest-menu" class="soft-select-menu" style="display:none;"></div>
+                <div id="user-suggest-menu" class="soft-select-menu position-relative" style="display:none;"></div>
               </div>
 
               <!-- Сервер -->
@@ -73,8 +73,8 @@
               <!-- Тариф -->
               <div class="mb-3">
                 <label class="form-label small mb-1">Тариф</label>
-                <div class="input-group input-group-sm">
-                  <div class="soft-select flex-grow-1 select-sm" id="plan_softselect" data-target="plan_select">
+                <div class="input-group">
+                  <div class="soft-select flex-grow-1" id="plan_softselect" data-target="plan_select">
                     <button type="button" class="soft-select-toggle" id="plan_select_toggle">
                       <span class="text-muted">—</span>
                     </button>
@@ -90,7 +90,7 @@
               <!-- Срок действия -->
               <div class="mb-3">
                 <label class="form-label small mb-1">Срок действия</label>
-                <div class="input-group input-group-sm mb-2">
+                <div class="input-group mb-2">
                   <span class="input-group-text"><i class="ti ti-calendar"></i></span>
                   <input type="text" class="form-control expiry-input" id="expiry_date" name="expiry_date" placeholder="ГГГГ-ММ-ДД ЧЧ:ММ" />
                 </div>
@@ -105,7 +105,7 @@
               <!-- Email -->
               <div class="mb-3">
                 <label class="form-label small mb-1">Email (авто)</label>
-                <div class="input-group input-group-sm">
+                <div class="input-group">
                   <span class="input-group-text"><i class="ti ti-mail"></i></span>
                   <input type="email" class="form-control bg-light" id="key_email" name="key_email" readonly />
                 </div>
@@ -114,7 +114,7 @@
               <!-- Заметка -->
               <div class="mb-3">
                 <label class="form-label small mb-1">Заметка</label>
-                <div class="input-group input-group-sm">
+                <div class="input-group">
                   <span class="input-group-text"><i class="ti ti-note"></i></span>
                   <input type="text" class="form-control" id="comment" name="comment" placeholder="Видно только вам" />
                 </div>
@@ -135,7 +135,7 @@
             <h3 class="card-title">Все ключи</h3>
             <form action="{{ url_for('sweep_expired_keys_route') }}" method="post" data-confirm="Удалить все истёкшие ключи?">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <button type="submit" class="btn btn-outline-danger btn-sm">
+              <button type="submit" class="btn btn-outline-danger">
                 <i class="ti ti-broom me-1"></i>Очистить истёкшие
               </button>
             </form>
@@ -210,14 +210,4 @@
     </div>
   </div>
 </div>
-
-<script type="module">
-import { initializeAdminKeysPage } from '{{ url_for('static', filename='js/modules/admin-keys.js') }}';
-import { initializeSoftSelects } from '{{ url_for('static', filename='js/modules/soft-select.js') }}';
-
-document.addEventListener('DOMContentLoaded', () => {
-  initializeSoftSelects();
-  initializeAdminKeysPage();
-});
-</script>
 {% endblock %}
