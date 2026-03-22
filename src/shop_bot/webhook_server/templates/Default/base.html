@@ -4,6 +4,14 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>{% block title %}Панель управления Ботом{% endblock %}</title>
+
+		<!-- Блокирующий скрипт для мгновенного применения темы (предотвращает мигание) -->
+		<script>
+			(function() {
+				const savedTheme = localStorage.getItem('ui_theme') || 'dark';
+				document.documentElement.setAttribute('data-bs-theme', savedTheme);
+			})();
+		</script>
 		<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/favicon-32x32.png') }}" />
 		<link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='img/favicon-16x16.png') }}" />
 		<link rel="shortcut icon" href="{{ url_for('static', filename='img/favicon-32x32.png') }}" />

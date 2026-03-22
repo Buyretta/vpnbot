@@ -125,7 +125,7 @@ body.layout-sidebar {
 .sidebar-footer {
   padding: 1rem;
   border-top: 1px solid var(--border-color);
-  background: var(--bg-card);
+  background-color: var(--bg-surface) !important;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -447,9 +447,18 @@ body.layout-sidebar {
 
 /* Компактный стиль карточки вверху */
 .card.card-compact .card-body { padding: 10px 12px; }
-.card.glass { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: calc(var(--ui-radius) + 2px); box-shadow: none; }
+.card.glass { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: calc(var(--ui-radius) + 2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 
-.card { box-shadow: none !important; background-color: var(--bg-card) !important; border: 1px solid var(--border-color) !important; }
+.card { 
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important; 
+  background-color: var(--bg-card) !important; 
+  border: 1px solid var(--border-color) !important; 
+}
+
+/* Более глубокая тень для темной темы */
+[data-bs-theme='dark'] .card {
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25) !important;
+}
 
 /* Мини-кнопки xs */
 .btn.btn-xs { padding: 4px 10px; font-size: .78rem; line-height: 1.2; border-radius: 10px; }
