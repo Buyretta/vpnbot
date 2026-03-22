@@ -18,86 +18,21 @@
     <div class="col-auto ms-auto">
       <div class="page-header-controls">
         <div class="input-group input-group-flat w-auto">
-          <input id="users-search" type="text" class="form-control" placeholder="Поиск..." value="{{ q or '' }}\
-
-<!-- Modal: Баланс пользователя -->
-<div class="modal modal-blur fade" id="balanceModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Баланс пользователя</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-2 text-secondary" id="bm-user"></div>
-        <div class="mb-2">Текущий баланс: <strong id="bm-balance">0.00</strong> RUB</div>
-        <form id="bm-form" class="d-flex gap-2" method="post">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <input class="form-control" type="text" inputmode="decimal" name="delta" placeholder="± сумма" required />
-          <button class="btn btn-primary" type="submit">Изменить</button>
-        </form>
-        <hr/>
-        <div class="mb-1">Рефералы: <strong id="bm-refcount">0</strong></div>
-        <div class="small text-secondary" style="max-height:180px;overflow:auto;">
-          <ul class="list-unstyled mb-0" id="bm-reflist"></ul>
+              <input id="users-search" type="text" class="form-control" placeholder="Поиск..." value="{{ q or '' }}">
+              <span class="input-group-text">
+                <kbd class="bg-light text-dark">Ctrl+K</kbd>
+              </span>
+            </div>
+            <select id="users-per-page" class="form-select w-auto" title="На странице">
+              <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+              <option value="20" {% if per_page == 20 or not per_page %}selected{% endif %}>20</option>
+              <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+              <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-  </div>
-
-<div class="card">
-  <div class="card-body">
-    <div class="table-responsive">
-      <table id="users-table" class="table table-vcenter card-table table-nowrap">
-        <thead>
-          <tr>
-            <th>Пользователь</th>
-            <th>Статус</th>
-            <th>Ключи</th>
-            <th>Баланс</th>
-            <th class="w-1"></th>
-          </tr>
-        </thead>
-        <tbody id="users-tbody"
-               data-fetch-url="{{ url_for('users_table_partial', page=current_page or 1, per_page=per_page or 20, q=q or '') }}"
-               data-fetch-interval="10000"
-               data-current-page="{{ current_page or 1 }}"
-               data-per-page="{{ per_page or 20 }}"
-               data-q="{{ q or '' }}">
-          {% for user in users %}
-          <tr>
-            <td>
-              <div class="d-flex py-1 align-items-center">
-                <div class="flex-fill">
-                  <div class="font-weight-medium">@{{ user.username or 'N/A' }}</div>
-                  <div class="text-muted small"><a href="#" class="text-reset">{{ user.telegram_id }}</a></div>
-                </div>
-              </div>
-            </td>
-            <td>
-              {% if user.is_banned %}
-                <span class="badge bg-red-lt">Забанен</span>
-              {% else %}
-                <span class="badge bg-green-lt">Активен</span>
-              {% endif %}
-            </td>
-            <td>
-              <div class="text-muted small">
-                {% if user.keys_count and user.keys_count > 0 %}
-                  <span class="badge bg-azure-lt">{{ user.keys_count }} шт.</span>
-                {% else %}
-                  —
-                {% endif %}
-              </div>
-            </td>
-            <td>
-              <div class="fw-bold">{{ '%.2f'|format(user.balance or 0) }} ₽</div>
-            </td>
-            <td class="text-end">
-              <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  Действия
                 </button>
                 <div class="dropdown-menu dropdown-menu-end">
                   <a class="dropdown-item" href="{{ url_for('admin_keys_page') }}?user_id={{ user.telegram_id }}">
