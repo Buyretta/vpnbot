@@ -68,100 +68,101 @@
                data-q="{{ q or '' }}">
           {% for user in users %}
           <tr>
-            <td class="user-id">{{ user.telegram_id }}</td>
-            <td class="user-name">@{{ user.username or 'N/A' }}</td>
+            <td>
+              <div class="d-flex py-1 align-items-center">
+                <div class="flex-fill">
+                  <div class="font-weight-medium">@{{ user.username or 'N/A' }}</div>
+                  <div class="text-muted small"><a href="#" class="text-reset">{{ user.telegram_id }}</a></div>
+                </div>
+              </div>
+            </td>
             <td>
               {% if user.is_banned %}
-                <span class="badge bg-red">Забанен</span>
+                <span class="badge bg-red-lt">Забанен</span>
               {% else %}
-                <span class="badge bg-green">Активен</span>
+                <span class="badge bg-green-lt">Активен</span>
               {% endif %}
             </td>
             <td>
-              {% if user.user_keys %} {{ user.user_keys | length }} шт. {% else %} 0 {% endif %}
-            </td>
-            <td>{{ '%.2f'|format(user.balance or 0) }}</td>
-            <td>
-              <div class="btn-list">
-                <a class="btn btn-primary btn-sm btn-glass" href="{{ url_for('admin_keys_page') }}?user_id={{ user.telegram_id }}" title="Выдать ключ" aria-label="Выдать ключ">
-                  <i class="ti ti-key-plus"></i>
-                </a>
-                <button type="button"
-                        class="btn btn-success btn-sm btn-glass btn-user-balance-sign"
-                        data-uid="{{ user.telegram_id }}"
-                        data-username="{{ user.username or 'N/A' }}"
-                        data-balance="{{ '%.2f'|format(user.balance or 0) }}"
-                        data-referrals='{{ user.referrals|tojson }}'
-                        data-sign="+"
-                        title="Начислить баланс" aria-label="Начислить баланс">
-                  Начислить баланс
-                </button>
-                <button type="button"
-                        class="btn btn-danger btn-sm btn-glass btn-user-balance-sign"
-                        data-uid="{{ user.telegram_id }}"
-                        data-username="{{ user.username or 'N/A' }}"
-                        data-balance="{{ '%.2f'|format(user.balance or 0) }}"
-                        data-referrals='{{ user.referrals|tojson }}'
-                        data-sign="-"
-                        title="Списать баланс" aria-label="Списать баланс">
-                  Списать баланс
-                </button>
-                <button type="button" class="btn btn-outline-secondary btn-sm btn-glass" data-toggle="keys" data-user="{{ user.telegram_id }}" title="Ключи" aria-label="Ключи">
-                  <i class="ti ti-key"></i>
-                </button>
-                {% if user.is_banned %}
-                <form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                  <button type="submit" class="btn btn-success btn-sm btn-glass" title="Разбанить" aria-label="Разбанить"><i class="ti ti-circle-check"></i></button>
-                </form>
+              <div class="text-muted small">
+                {% if user.keys_count and user.keys_count > 0 %}
+                  <span class="badge bg-azure-lt">{{ user.keys_count }} шт.</span>
                 {% else %}
-                <form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Вы уверены, что хотите забанить этого пользователя? Он не сможет пользоваться ботом.">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                  <button type="submit" class="btn btn-warning btn-sm btn-glass" title="Бан" aria-label="Бан"><i class="ti ti-ban"></i></button>
-                </form>
+                  —
                 {% endif %}
-                {% if user.user_keys %}
-                <form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя с серверов. Вы уверены?" data-ajax="delete" data-refresh-target="users-tbody" data-action="revoke-keys">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                  <button type="submit" class="btn btn-danger btn-sm btn-glass" title="Отозвать ключи" aria-label="Отозвать ключи"><i class="ti ti-trash-x"></i></button>
-                </form>
-                {% endif %}
+              </div>
+            </td>
+            <td>
+              <div class="fw-bold">{{ '%.2f'|format(user.balance or 0) }} ₽</div>
+            </td>
+            <td class="text-end">
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  Действия
+                </button>
+                <div class="dropdown-menu dropdown-menu-end">
+                  <a class="dropdown-item" href="{{ url_for('admin_keys_page') }}?user_id={{ user.telegram_id }}">
+                    <i class="ti ti-key-plus me-2 text-primary"></i> Выдать ключ
+                  </a>
+                  <button type="button" class="dropdown-item btn-user-balance-sign" 
+                          data-uid="{{ user.telegram_id }}" 
+                          data-username="{{ user.username or 'N/A' }}"
+                          data-balance="{{ '%.2f'|format(user.balance or 0) }}"
+                          data-referrals='{{ user.referrals|tojson }}'
+                          data-sign="+">
+                    <i class="ti ti-plus me-2 text-success"></i> Пополнить баланс
+                  </button>
+                  <button type="button" class="dropdown-item btn-user-balance-sign"
+                          data-uid="{{ user.telegram_id }}"
+                          data-username="{{ user.username or 'N/A' }}"
+                          data-balance="{{ '%.2f'|format(user.balance or 0) }}"
+                          data-referrals='{{ user.referrals|tojson }}'
+                          data-sign="-">
+                    <i class="ti ti-minus me-2 text-danger"></i> Списать баланс
+                  </button>
+                  <button type="button" class="dropdown-item" data-toggle="keys" data-user="{{ user.telegram_id }}" data-keys-url="{{ url_for('user_keys_table_partial', user_id=user.telegram_id) }}">
+                    <i class="ti ti-key me-2 text-azure"></i> Показать ключи
+                  </button>
+                  <div class="dropdown-divider"></div>
+                  {% if user.is_banned %}
+                  <form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="dropdown-item text-success">
+                      <i class="ti ti-circle-check me-2"></i> Разбанить
+                    </button>
+                  </form>
+                  {% else %}
+                  <form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Вы уверены, что хотите забанить этого пользователя?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="dropdown-item text-warning">
+                      <i class="ti ti-ban me-2"></i> Забанить
+                    </button>
+                  </form>
+                  {% endif %}
+                  {% if user.keys_count and user.keys_count > 0 %}
+                  <form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя. Продолжить?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="dropdown-item text-danger">
+                      <i class="ti ti-trash-x me-2"></i> Отозвать все ключи
+                    </button>
+                  </form>
+                  {% endif %}
+                </div>
               </div>
             </td>
           </tr>
           <tr class="keys-row" id="keys-{{ user.telegram_id }}" style="display:none;">
-            <td colspan="6">
-              <div class="card">
-                <div class="card-header"><strong>Ключи пользователя</strong></div>
-                <div class="card-body p-2">
-                  {% if user.user_keys %}
-                  <div class="table-responsive">
-                    <table class="table table-sm table-vcenter">
-                      <thead>
-                        <tr>
-                          <th>ID</th>
-                          <th>Хост</th>
-                          <th>Email</th>
-                          <th>UUID</th>
-                          <th>Истекает</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% for k in user.user_keys %}
-                        <tr>
-                          <td>#{{ k.key_id }}</td>
-                          <td>{{ k.host_name }}</td>
-                          <td>{{ k.key_email }}</td>
-                          <td class="text-truncate" style="max-width:220px">{{ k.xui_client_uuid }}</td>
-                          <td>{{ k.expiry_date or '' }}</td>
-                        </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
+            <td colspan="5">
+              <div class="card card-sm m-2">
+                <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                  <strong>Ключи пользователя</strong>
+                  <button type="button" class="btn-close" onclick="document.getElementById('keys-{{ user.telegram_id }}').style.display='none'; document.querySelector('[data-toggle=\'keys\'][data-user=\'{{ user.telegram_id }}\']').classList.replace('btn-secondary', 'btn-outline-secondary');" aria-label="Close"></button>
+                </div>
+                <div class="card-body p-0 keys-container">
+                  <div class="p-3 text-center text-muted">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    Загрузка ключей...
                   </div>
-                  {% else %}
-                    <div class="text-secondary">Ключей нет</div>
-                  {% endif %}
                 </div>
               </div>
             </td>
@@ -239,7 +240,29 @@
       return Array.from(tbody.children).filter(tr => tr.tagName === 'TR' && !tr.classList.contains('keys-row'));
     }
     function getKeysRowByUid(uid){ return document.getElementById('keys-' + uid); }
-    function openKeysForUid(uid){
+    async function fetchKeysForUid(uid){
+      const row = getKeysRowByUid(uid);
+      if (!row) return;
+      const container = row.querySelector('.keys-container');
+      if (!container) return;
+      
+      // Если данные уже загружены (нет спиннера), не загружаем повторно
+      if (!container.querySelector('.spinner-border')) return;
+
+      const btn = table.querySelector(`[data-toggle="keys"][data-user="${uid}"]`);
+      const url = btn?.getAttribute('data-keys-url');
+      if (!url) return;
+
+      try {
+        const resp = await fetch(url, { headers: { 'Accept': 'text/html' }, cache: 'no-store', credentials: 'same-origin' });
+        if (!resp.ok) throw new Error('Failed to fetch');
+        const html = await resp.text();
+        container.innerHTML = html;
+      } catch(e) {
+        container.innerHTML = `<div class="p-3 text-danger small">Ошибка загрузки: ${e.message}</div>`;
+      }
+    }
+    async function openKeysForUid(uid){
       const row = getKeysRowByUid(uid);
       if (!row) return;
       row.style.display = '';
@@ -251,6 +274,8 @@
         btn.classList.add('btn-secondary');
         btn.classList.remove('btn-outline-secondary');
       }
+      // Подгрузка данных, если контейнер еще не заполнен (или принудительно)
+      await fetchKeysForUid(uid);
     }
     function closeKeysForUid(uid){
       const row = getKeysRowByUid(uid);
@@ -266,7 +291,7 @@
     }
     function restoreOpenedKeys(){
       // Восстанавливаем состояние после перерисовки tbody
-      openSet.forEach(uid => {
+      openSet.forEach(async (uid) => {
         const row = getKeysRowByUid(uid);
         if (row) {
           row.style.display = '';
@@ -275,6 +300,7 @@
             btn.classList.add('btn-secondary');
             btn.classList.remove('btn-outline-secondary');
           }
+          await fetchKeysForUid(uid);
         }
       });
     }

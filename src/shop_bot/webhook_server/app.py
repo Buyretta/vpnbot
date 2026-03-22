@@ -406,7 +406,9 @@ def create_webhook_app(bot_controller_instance):
 
         for user in users:
             uid = user['telegram_id']
-            user['user_keys'] = get_user_keys(uid)
+            # Загружаем только количество ключей для отображения в бейдже, а не все ключи
+            from shop_bot.data_manager.database import get_total_keys_count_for_user
+            user['keys_count'] = get_total_keys_count_for_user(uid)
             try:
                 user['balance'] = get_balance(uid)
                 user['referrals'] = get_referrals_for_user(uid)
@@ -438,7 +440,9 @@ def create_webhook_app(bot_controller_instance):
         users, total = get_users_paginated(page=page, per_page=per_page, q=q or None)
         for user in users:
             uid = user['telegram_id']
-            user['user_keys'] = get_user_keys(uid)
+            # Загружаем только количество ключей
+            from shop_bot.data_manager.database import get_total_keys_count_for_user
+            user['keys_count'] = get_total_keys_count_for_user(uid)
             try:
                 user['balance'] = get_balance(uid)
                 user['referrals'] = get_referrals_for_user(uid)
@@ -446,6 +450,17 @@ def create_webhook_app(bot_controller_instance):
                 user['balance'] = 0.0
                 user['referrals'] = []
         return render_template_with_theme('partials/users_table.html', users=users)
+
+    # Partial: user keys table
+    @flask_app.route('/users/<int:user_id>/keys.partial')
+    @login_required
+    def user_keys_table_partial(user_id: int):
+        keys = []
+        try:
+            keys = get_user_keys(user_id)
+        except Exception:
+            keys = []
+        return render_template_with_theme('partials/user_keys_table.html', keys=keys)
 
     @flask_app.route('/users/<int:user_id>/balance/adjust', methods=['POST'])
     @login_required

@@ -49,7 +49,27 @@ export function initializeUsersPage() {
         return document.getElementById('keys-' + uid); 
     }
     
-    function openKeysForUid(uid) {
+    async function fetchKeysForUid(uid) {
+        const row = getKeysRowByUid(uid);
+        if (!row) return;
+        const container = row.querySelector('.keys-container');
+        if (!container) return;
+        
+        const btn = table.querySelector(`[data-toggle="keys"][data-user="${uid}"]`);
+        const url = btn?.getAttribute('data-keys-url');
+        if (!url) return;
+
+        try {
+            const resp = await fetch(url, { headers: { 'Accept': 'text/html' }, cache: 'no-store', credentials: 'same-origin' });
+            if (!resp.ok) throw new Error('Failed to fetch');
+            const html = await resp.text();
+            container.innerHTML = html;
+        } catch(e) {
+            container.innerHTML = `<div class="p-3 text-danger small">Ошибка загрузки: ${e.message}</div>`;
+        }
+    }
+
+    async function openKeysForUid(uid) {
         const row = getKeysRowByUid(uid);
         if (!row) return;
         row.style.display = '';
@@ -60,6 +80,7 @@ export function initializeUsersPage() {
             btn.classList.add('btn-secondary');
             btn.classList.remove('btn-outline-secondary');
         }
+        await fetchKeysForUid(uid);
     }
     
     function closeKeysForUid(uid) {
@@ -76,7 +97,7 @@ export function initializeUsersPage() {
     }
     
     function restoreOpenedKeys() {
-        openSet.forEach(uid => {
+        openSet.forEach(async (uid) => {
             const row = getKeysRowByUid(uid);
             if (row) {
                 row.style.display = '';
@@ -85,6 +106,7 @@ export function initializeUsersPage() {
                     btn.classList.add('btn-secondary');
                     btn.classList.remove('btn-outline-secondary');
                 }
+                await fetchKeysForUid(uid);
             }
         });
     }

@@ -2009,6 +2009,16 @@ def delete_key_by_email(email: str) -> bool:
         logging.error(f"Не удалось delete key '{email}': {e}")
         return False
 
+def get_total_keys_count_for_user(user_id: int) -> int:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM vpn_keys WHERE user_id = ?", (user_id,))
+            return cursor.fetchone()[0]
+    except sqlite3.Error as e:
+        logging.error(f"Не удалось get keys count for user {user_id}: {e}")
+        return 0
+
 def get_user_keys(user_id: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:

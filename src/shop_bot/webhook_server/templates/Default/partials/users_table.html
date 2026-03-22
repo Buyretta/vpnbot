@@ -17,8 +17,8 @@
   </td>
   <td>
     <div class="text-muted small">
-      {% if user.user_keys %}
-        <span class="badge bg-azure-lt">{{ user.user_keys | length }} шт.</span>
+      {% if user.keys_count and user.keys_count > 0 %}
+        <span class="badge bg-azure-lt">{{ user.keys_count }} шт.</span>
       {% else %}
         —
       {% endif %}
@@ -52,7 +52,7 @@
                 data-sign="-">
           <i class="ti ti-minus me-2 text-danger"></i> Списать баланс
         </button>
-        <button type="button" class="dropdown-item" data-toggle="keys" data-user="{{ user.telegram_id }}">
+        <button type="button" class="dropdown-item" data-toggle="keys" data-user="{{ user.telegram_id }}" data-keys-url="{{ url_for('user_keys_table_partial', user_id=user.telegram_id) }}">
           <i class="ti ti-key me-2 text-azure"></i> Показать ключи
         </button>
         <div class="dropdown-divider"></div>
@@ -71,7 +71,7 @@
           </button>
         </form>
         {% endif %}
-        {% if user.user_keys %}
+        {% if user.keys_count and user.keys_count > 0 %}
         <form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя. Продолжить?">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button type="submit" class="dropdown-item text-danger">
@@ -86,36 +86,15 @@
 <tr class="keys-row" id="keys-{{ user.telegram_id }}" style="display:none;">
   <td colspan="5">
     <div class="card card-sm m-2">
-      <div class="card-header py-2"><strong>Ключи пользователя</strong></div>
-      <div class="card-body p-0">
-        {% if user.user_keys %}
-        <div class="table-responsive">
-          <table class="table table-sm card-table table-vcenter">
-            <thead>
-              <tr>
-                <th class="py-1">ID</th>
-                <th class="py-1">Хост</th>
-                <th class="py-1">Email</th>
-                <th class="py-1">UUID</th>
-                <th class="py-1">Истекает</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for k in user.user_keys %}
-              <tr>
-                <td>#{{ k.key_id }}</td>
-                <td><span class="badge bg-blue-lt">{{ k.host_name }}</span></td>
-                <td>{{ k.key_email }}</td>
-                <td class="text-truncate text-muted" style="max-width:200px">{{ k.xui_client_uuid }}</td>
-                <td><div class="text-muted small">{{ k.expiry_date or '—' }}</div></td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+      <div class="card-header py-2 d-flex justify-content-between align-items-center">
+        <strong>Ключи пользователя</strong>
+        <button type="button" class="btn-close" onclick="document.getElementById('keys-{{ user.telegram_id }}').style.display='none'; document.querySelector('[data-toggle=\'keys\'][data-user=\'{{ user.telegram_id }}\']').classList.replace('btn-secondary', 'btn-outline-secondary');" aria-label="Close"></button>
+      </div>
+      <div class="card-body p-0 keys-container">
+        <div class="p-3 text-center text-muted">
+          <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+          Загрузка ключей...
         </div>
-        {% else %}
-          <div class="p-3 text-secondary">Ключей нет</div>
-        {% endif %}
       </div>
     </div>
   </td>
