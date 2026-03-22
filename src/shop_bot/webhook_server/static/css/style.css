@@ -727,8 +727,6 @@ body.layout-sidebar {
 
 * {
 	box-sizing: border-box;
-	margin: 0;
-	padding: 0;
 }
 .bm { display: none; position: absolute; right: 12px; top: 10px; }
 #burger {
