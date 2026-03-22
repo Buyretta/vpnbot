@@ -27,7 +27,7 @@ body.layout-sidebar {
 .sidebar-header {
   padding: 1.5rem 1rem;
   border-bottom: 1px solid var(--border-color);
-  background: var(--bg-card);
+  background-color: var(--bg-surface) !important;
 }
 
 .sidebar-brand {
@@ -344,9 +344,77 @@ body.layout-sidebar {
   }
 }
 
-/* Smooth swap for partial updates */
-.is-swapping {
-  transition: min-height .24s ease;
+/* ===== Page Header & Adaptive Controls ===== */
+.page-header {
+  margin-bottom: 1.5rem;
+}
+
+.page-pretitle {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.page-header-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .page-header .row {
+    flex-direction: column;
+    align-items: flex-start !important;
+  }
+  
+  .page-header .col-auto {
+    width: 100%;
+    margin-top: 1rem;
+    margin-left: 0 !important;
+  }
+  
+  .page-header-controls {
+    flex-wrap: wrap;
+  }
+  
+  .page-header-controls .form-control,
+  .page-header-controls .form-select {
+    flex: 1;
+    min-width: 140px;
+  }
+  
+  .page-title {
+    font-size: 1.25rem;
+  }
+  
+  .text-secondary {
+    font-size: 0.875rem;
+  }
+}
+
+/* Breadcrumbs style */
+.breadcrumb {
+  padding: 0;
+  margin-bottom: 0.5rem;
+  background: transparent;
+  font-size: 0.75rem;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+  content: "›";
+  color: var(--text-muted);
 }
 
 /* --- UI utility: pill rounding --- */
