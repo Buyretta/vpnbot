@@ -20,76 +20,101 @@
 <div class="page-body">
   <div class="container-xl">
     <div class="card glass mb-3">
+      <div class="card-header">
+        <h3 class="card-title">Создать новый ключ</h3>
+      </div>
       <div class="card-body">
-        <form action="{{ url_for('create_key_standalone_ajax_route') }}" method="post" class="row g-2 align-items-end" id="create-key-form" autocomplete="off">
+        <form action="{{ url_for('create_key_standalone_ajax_route') }}" method="post" id="create-key-form" autocomplete="off">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <input type="hidden" name="key_type" id="key_type" value="personal" />
-          <div class="col-12">
-            <div class="btn-group" role="group" aria-label="Тип ключа">
-              <button type="button" class="btn btn-outline-primary rounded-3" id="btn-type-personal">Персональный ключ</button>
-              <button type="button" class="btn btn-outline-purple rounded-3" id="btn-type-gift">Подарочный ключ</button>
+          
+          <div class="row g-3">
+            <!-- Выбор типа ключа -->
+            <div class="col-12">
+              <div class="form-label">Тип ключа</div>
+              <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="btn-key-type" id="btn-type-personal" checked autocomplete="off">
+                <label class="btn btn-outline-primary" for="btn-type-personal">
+                  <i class="ti ti-user me-1"></i> Персональный
+                </label>
+                <input type="radio" class="btn-check" name="btn-key-type" id="btn-type-gift" autocomplete="off">
+                <label class="btn btn-outline-purple" for="btn-type-gift">
+                  <i class="ti ti-gift me-1"></i> Подарочный
+                </label>
+              </div>
             </div>
-          </div>
-          <div class="col-12 col-sm-3" id="group_user">
-            <label class="form-label" for="user_id">Пользователь</label>
-            <div class="input-group">
-              <input class="form-control rounded-3" id="user_id" name="user_id" placeholder="ID или @username" required />
+
+            <!-- Данные пользователя и хоста -->
+            <div class="col-md-4" id="group_user">
+              <label class="form-label required" for="user_id">Пользователь</label>
+              <input class="form-control" id="user_id" name="user_id" placeholder="ID или @username" required />
             </div>
-          </div>
-          <div class="col-12 col-sm-3">
-            <label class="form-label" for="host_name">Хост</label>
-            <div class="soft-select" id="host_softselect" data-target="host_name">
-              <button type="button" class="soft-select-toggle" id="host_name_toggle">Выберите хост...</button>
-              <div class="soft-select-menu" id="host_name_menu"></div>
-              <select class="form-select rounded-3 select-soft" id="host_name" name="host_name" required>
-                <option value="" selected disabled>Выберите хост...</option>
-                {% for h in hosts %}
-                <option value="{{ h.host_name }}" data-inbound="{{ h.host_inbound_id }}">{{ h.host_name }}</option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-          <div class="col-12 col-sm-2">
-            <label class="form-label" for="inbound_id">Inbound ID</label>
-            <input class="form-control rounded-3" type="text" id="inbound_id" placeholder="—" readonly />
-          </div>
-          <div class="col-12 col-sm-4">
-            <label class="form-label" for="key_email">Email ключа</label>
-            <input class="form-control rounded-3" type="email" id="key_email" name="key_email" placeholder="user@bot.local" required readonly />
-          </div>
-          <div class="col-12 col-sm-4">
-            <label class="form-label" for="plan_select">Тариф</label>
-            <div class="input-group">
-              <div class="soft-select flex-grow-1" id="plan_softselect" data-target="plan_select">
-                <button type="button" class="soft-select-toggle" id="plan_select_toggle">— Не выбран —</button>
-                <div class="soft-select-menu" id="plan_select_menu"></div>
-                <select class="form-select rounded-3 select-soft" id="plan_select">
-                  <option value="">— Не выбран —</option>
+            <div class="col-md-4">
+              <label class="form-label required" for="host_name">Хост</label>
+              <div class="soft-select" id="host_softselect" data-target="host_name">
+                <button type="button" class="soft-select-toggle" id="host_name_toggle">Выберите хост...</button>
+                <div class="soft-select-menu" id="host_name_menu"></div>
+                <select class="form-select select-soft" id="host_name" name="host_name" required>
+                  <option value="" selected disabled>Выберите хост...</option>
+                  {% for h in hosts %}
+                  <option value="{{ h.host_name }}" data-inbound="{{ h.host_inbound_id }}">{{ h.host_name }}</option>
+                  {% endfor %}
                 </select>
               </div>
-              <span class="input-group-text rounded-3 fw-semibold text-white bg-purple" id="plan_price" style="border:0;">— RUB</span>
             </div>
-          </div>
-          <div class="col-12 col-sm-2">
-            <label class="form-label" for="custom_days">Дней</label>
-            <input class="form-control rounded-3" type="number" id="custom_days" min="1" placeholder="например, 30" />
-          </div>
-          <div class="col-12 col-sm-4">
-            <label class="form-label" for="expiry_date">Истекает</label>
-            <div class="d-flex flex-wrap align-items-stretch gap-2 gp-presets">
-              <input class="form-control rounded-3 expiry-input" type="text" id="expiry_date" name="expiry_date" placeholder="Выберите дату" />
-              <button class="btn btn-outline-secondary rounded-3" type="button" data-preset="30">+30</button>
-              <button class="btn btn-outline-secondary rounded-3" type="button" data-preset="90">+90</button>
-              <button class="btn btn-outline-secondary rounded-3" type="button" data-preset="180">+180</button>
-              <button class="btn btn-outline-secondary rounded-3" type="button" data-preset="365">+365</button>
+            <div class="col-md-4">
+              <label class="form-label" for="key_email">Email ключа</label>
+              <div class="input-group input-group-flat">
+                <input class="form-control" type="email" id="key_email" name="key_email" placeholder="user@bot.local" required readonly />
+                <span class="input-group-text">
+                  <i class="ti ti-mail text-muted"></i>
+                </span>
+              </div>
             </div>
-          </div>
-          <div class="col-12">
-            <label class="form-label" for="comment">Комментарий</label>
-            <input class="form-control rounded-3" type="text" id="comment" name="comment" placeholder="Необязательный комментарий" />
-          </div>
-          <div class="col-12 col-sm-12">
-            <button type="button" class="btn btn-primary rounded-3" id="btn-submit-create">Создать ключ</button>
+
+            <!-- Тариф и срок -->
+            <div class="col-md-4">
+              <label class="form-label required" for="plan_select">Тарифный план</label>
+              <div class="input-group">
+                <div class="soft-select flex-grow-1" id="plan_softselect" data-target="plan_select">
+                  <button type="button" class="soft-select-toggle" id="plan_select_toggle">— Не выбран —</button>
+                  <div class="soft-select-menu" id="plan_select_menu"></div>
+                  <select class="form-select select-soft" id="plan_select">
+                    <option value="">— Не выбран —</option>
+                  </select>
+                </div>
+                <span class="input-group-text fw-bold text-purple" id="plan_price">0 ₽</span>
+              </div>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label" for="expiry_date">Срок действия</label>
+              <div class="d-flex gap-2 flex-wrap">
+                <div class="input-group input-group-flat w-auto flex-grow-1" style="min-width: 200px;">
+                  <input class="form-control expiry-input" type="text" id="expiry_date" name="expiry_date" placeholder="Выберите дату" />
+                  <span class="input-group-text">
+                    <i class="ti ti-calendar"></i>
+                  </span>
+                </div>
+                <div class="btn-group">
+                  <button class="btn btn-outline-secondary" type="button" data-preset="30">+30д</button>
+                  <button class="btn btn-outline-secondary" type="button" data-preset="90">+90д</button>
+                  <button class="btn btn-outline-secondary" type="button" data-preset="180">+180д</button>
+                  <button class="btn btn-outline-secondary" type="button" data-preset="365">+365д</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Дополнительно -->
+            <div class="col-md-12">
+              <label class="form-label" for="comment">Комментарий к ключу</label>
+              <input class="form-control" type="text" id="comment" name="comment" placeholder="Будет видно только администратору" />
+            </div>
+
+            <div class="col-12 mt-4">
+              <button type="button" class="btn btn-primary w-100" id="btn-submit-create">
+                <i class="ti ti-key-plus me-2"></i> Создать и отправить ключ
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -517,13 +542,18 @@
       }
     }
 
-    if (btnTypePersonal) btnTypePersonal.addEventListener('click', ()=>{
-      if (keyTypeInput) keyTypeInput.value = 'personal';
-      applyKeyTypeUI(); saveState();
+    // Обработчики переключения через радио-кнопки
+    if (btnTypePersonal) btnTypePersonal.addEventListener('change', (e)=>{
+      if (e.target.checked) {
+        if (keyTypeInput) keyTypeInput.value = 'personal';
+        applyKeyTypeUI(); saveState();
+      }
     });
-    if (btnTypeGift) btnTypeGift.addEventListener('click', ()=>{
-      if (keyTypeInput) keyTypeInput.value = 'gift';
-      applyKeyTypeUI(); saveState();
+    if (btnTypeGift) btnTypeGift.addEventListener('change', (e)=>{
+      if (e.target.checked) {
+        if (keyTypeInput) keyTypeInput.value = 'gift';
+        applyKeyTypeUI(); saveState();
+      }
     });
 
     applyKeyTypeUI();
