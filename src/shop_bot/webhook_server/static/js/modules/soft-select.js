@@ -44,7 +44,7 @@ export function initializeSoftSelects() {
                     closeMenu();
                     
                     // Trigger change event
-                    select.dispatchEvent(new Event('change'));
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
                 });
                 
                 menu.appendChild(item);

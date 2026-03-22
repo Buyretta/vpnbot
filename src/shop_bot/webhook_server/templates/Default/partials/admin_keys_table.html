@@ -6,19 +6,25 @@
   <td class="small text-truncate" style="max-width:160px" title="{{ k.key_email }}">{{ k.key_email }}</td>
   <td class="small">{{ k.expiry_date or '—' }}</td>
   <td class="text-center">
-    <div class="btn-list justify-content-center">
-      <button type="button" class="btn btn-sm btn-outline-secondary btn-glass" data-action="edit-comment" data-key-id="{{ k.key_id }}" data-comment="{{ (k.comment or '')|e }}" title="Заметка" data-bs-toggle="tooltip">
-        <i class="ti ti-message"></i>
+    <div class="dropdown">
+      <button class="btn btn-ghost-secondary btn-icon" data-bs-toggle="dropdown" aria-expanded="false" title="Действия">
+        <i class="ti ti-dots-vertical"></i>
       </button>
-      <button type="button" class="btn btn-sm btn-outline-warning btn-glass" data-action="edit-expiry" data-key-id="{{ k.key_id }}" data-expiry="{{ k.expiry_date or '' }}" title="Продлить" data-bs-toggle="tooltip">
-        <i class="ti ti-calendar-stats"></i>
-      </button>
-      <form action="{{ url_for('delete_key_route', key_id=k.key_id) }}" method="post" data-confirm="Удалить ключ #{{ k.key_id }}?" class="d-inline">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <button type="submit" class="btn btn-sm btn-outline-danger btn-glass" title="Удалить" data-bs-toggle="tooltip">
-          <i class="ti ti-trash"></i>
+      <div class="dropdown-menu dropdown-menu-end">
+        <button type="button" class="dropdown-item" data-action="edit-comment" data-key-id="{{ k.key_id }}" data-comment="{{ (k.comment or '')|e }}">
+          <i class="ti ti-message me-2"></i>Заметка
         </button>
-      </form>
+        <button type="button" class="dropdown-item" data-action="edit-expiry" data-key-id="{{ k.key_id }}" data-expiry="{{ k.expiry_date or '' }}">
+          <i class="ti ti-calendar-stats me-2"></i>Продлить
+        </button>
+        <div class="dropdown-divider"></div>
+        <form action="{{ url_for('delete_key_route', key_id=k.key_id) }}" method="post" data-confirm="Удалить ключ #{{ k.key_id }}?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="dropdown-item text-danger">
+            <i class="ti ti-trash me-2"></i>Удалить
+          </button>
+        </form>
+      </div>
     </div>
   </td>
 </tr>

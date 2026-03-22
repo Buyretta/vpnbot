@@ -69,12 +69,13 @@ export function initializeAdminKeysPage() {
 
     // Flatpickr для даты
     if (expiryInput && window.flatpickr) {
+        const localeRu = (window.flatpickr && window.flatpickr.l10ns && window.flatpickr.l10ns.ru) ? window.flatpickr.l10ns.ru : 'ru';
         flatpickr(expiryInput, {
             enableTime: true,
             time_24hr: true,
             dateFormat: 'Y-m-d H:i',
             minuteIncrement: 5,
-            locale: 'ru'
+            locale: localeRu
         });
     }
 
@@ -139,7 +140,10 @@ export function initializeAdminKeysPage() {
     }
 
     if (hostSel) {
-        hostSel.addEventListener('change', loadPlans);
+        hostSel.addEventListener('change', () => {
+            loadPlans();
+            saveState();
+        });
         if (hostSel.value) loadPlans();
     }
 
