@@ -446,7 +446,9 @@ body.layout-sidebar {
 
 /* Компактный стиль карточки вверху */
 .card.card-compact .card-body { padding: 10px 12px; }
-.card.glass { background: color-mix(in oklab, var(--bg-card) 70%, transparent); border: 1px solid var(--border-color); border-radius: calc(var(--ui-radius) + 2px); box-shadow: 0 8px 22px rgba(0,0,0,.22); }
+.card.glass { background: color-mix(in oklab, var(--bg-card) 70%, transparent); border: 1px solid var(--border-color); border-radius: calc(var(--ui-radius) + 2px); box-shadow: none; }
+
+.card { box-shadow: none !important; }
 
 /* Мини-кнопки xs */
 .btn.btn-xs { padding: 4px 10px; font-size: .78rem; line-height: 1.2; border-radius: 10px; }
@@ -616,17 +618,17 @@ body.layout-sidebar {
 
 /* Светлая тема */
 [data-bs-theme='light'] {
-	--bg-page: #f6f8fb;
+	--bg-page: #f1f3f6; /* Сероватый фон для акцентирования карточек */
 	--bg-surface: #ffffff;
 	--bg-card: #ffffff;
-	--text-primary: #212529;
-	--text-muted: #5f6b7a;
+	--text-primary: #1d273b;
+	--text-muted: #627282;
 	--border-color: rgba(0, 0, 0, 0.08);
 	--tblr-primary: var(--primary-color);
 	--bs-primary: var(--primary-color);
-    --accent-1: color-mix(in oklab, var(--primary-color) 16%, transparent);
-    --accent-2: color-mix(in oklab, #3e8cc9 12%, transparent);
-    --accent-3: color-mix(in oklab, #3ec996 10%, transparent);
+    --accent-1: color-mix(in oklab, var(--primary-color) 10%, transparent);
+    --accent-2: color-mix(in oklab, #3e8cc9 8%, transparent);
+    --accent-3: color-mix(in oklab, #3ec996 6%, transparent);
 }
 
 /* Тёмная тема */
@@ -733,7 +735,7 @@ body::before {
 }
 
 /* более мягкая виньетка в светлой теме */
-html[data-bs-theme='light'] body::before { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06), inset 0 0 120px rgba(0,0,0,0.12); }
+html[data-bs-theme='light'] body::before { box-shadow: none; }
 
 /* Градиентная подложка поверх фона — зависит от темы */
 body::after {
