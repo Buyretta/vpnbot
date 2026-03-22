@@ -483,7 +483,7 @@ body.layout-sidebar {
 .btn-glass.btn-danger:hover { background: color-mix(in oklab, var(--danger-color) 22%, transparent) !important; }
 :root {
 	/* Брендовые переменные проекта */
-	--primary-color: #ae3ec9; /* grape */
+	--primary-color: #206bc4; /* tabler blue */
 	--success-color: #51cf66;
 	--danger-color: #ff6b6b;
 	--warning-color: #ff922b;
