@@ -2,21 +2,25 @@
 {% block content %}
 
 <div class="page-header d-print-none">
-  <div class="row align-items-center g-2">
-    <div class="col">
-      <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-          <li class="breadcrumb-item"><a href="{{ url_for('dashboard_page') }}">Главная</a></li>
-          <li class="breadcrumb-item active" aria-current="page">Настройки</li>
-        </ol>
-      </nav>
-      <h2 class="page-title">Настройки системы</h2>
-      <div class="text-secondary small mt-1 d-none d-sm-block">Конфигурация ботов, платежных систем и серверов</div>
+  <div class="container-xl">
+    <div class="row align-items-center g-2">
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('dashboard_page') }}">Главная</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Настройки</li>
+          </ol>
+        </nav>
+        <h2 class="page-title">Настройки системы</h2>
+        <div class="text-secondary small mt-1 d-none d-sm-block">Конфигурация ботов, платежных систем и серверов</div>
+      </div>
     </div>
   </div>
 </div>
 
-{# Индикатор готовности к запуску #}
+<div class="page-body">
+  <div class="container-xl">
+    {# Индикатор готовности к запуску #}
 {% if all_settings_ok and support_settings_ok %}
   <div class="alert alert-success" role="alert">
     ✅ Веб-панель и оба бота настроены. Можно запускать.
@@ -903,6 +907,7 @@
 		</div>
 	        </form>
     </div>
+  </div>
 </div>
 
 <script>

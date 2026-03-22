@@ -1,221 +1,230 @@
 {% extends 'Default/base.html' %} {% block title %}Управление Пользователями{% endblock %} {% block content %}
 
-    <div class="page-header d-print-none">
-      <div class="row align-items-center g-2">
-        <div class="col">
-          <!-- Хлебные крошки -->
-          <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-              <li class="breadcrumb-item"><a href="{{ url_for('dashboard_page') }}">Главная</a></li>
-              <li class="breadcrumb-item active" aria-current="page">Пользователи</li>
-            </ol>
-          </nav>
-          <h2 class="page-title">Пользователи</h2>
-          <div class="text-secondary small mt-1 d-none d-sm-block">Список зарегистрированных пользователей и быстрые действия</div>
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row align-items-center g-2">
+      <div class="col">
+        <!-- Хлебные крошки -->
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('dashboard_page') }}">Главная</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Пользователи</li>
+          </ol>
+        </nav>
+        <h2 class="page-title">Пользователи</h2>
+        <div class="text-secondary small mt-1 d-none d-sm-block">Список зарегистрированных пользователей и быстрые действия</div>
+      </div>
+      
+      <!-- Фильтры и поиск -->
+      <div class="col-auto ms-auto">
+        <div class="page-header-controls">
+          <div class="input-group input-group-flat w-auto">
+            <input id="users-search" type="text" class="form-control" placeholder="Поиск..." value="{{ q or '' }}">
+            <span class="input-group-text">
+              <kbd class="bg-light text-dark">Ctrl+K</kbd>
+            </span>
+          </div>
+          <select id="users-per-page" class="form-select w-auto" title="На странице">
+            <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+            <option value="20" {% if per_page == 20 or not per_page %}selected{% endif %}>20</option>
+            <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+          </select>
         </div>
-        
-        <!-- Фильтры и поиск -->
-        <div class="col-auto ms-auto">
-          <div class="page-header-controls">
-            <div class="input-group input-group-flat w-auto">
-              <input id="users-search" type="text" class="form-control" placeholder="Поиск..." value="{{ q or '' }}">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="container-xl">
+    <!-- Modal: Баланс пользователя -->
+    <div class="modal modal-blur fade" id="balanceModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Баланс пользователя</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2 text-secondary" id="bm-user"></div>
+            <div class="mb-2">Текущий баланс: <strong id="bm-balance">0.00</strong> RUB</div>
+            <form id="bm-form" class="d-flex gap-2" method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <input class="form-control" type="text" inputmode="decimal" name="delta" placeholder="± сумма" required />
+              <button class="btn btn-primary" type="submit">Изменить</button>
+            </form>
+            <hr/>
+            <div class="mb-1">Рефералы: <strong id="bm-refcount">0</strong></div>
+            <div class="small text-secondary" style="max-height:180px;overflow:auto;">
+              <ul class="list-unstyled mb-0" id="bm-reflist"></ul>
             </div>
-            <select id="users-per-page" class="form-select w-auto" title="На странице">
-              <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
-              <option value="20" {% if per_page == 20 or not per_page %}selected{% endif %}>20</option>
-              <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
-              <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
-            </select>
           </div>
         </div>
       </div>
     </div>
-  
-  <!-- Modal: Баланс пользователя -->
-<div class="modal modal-blur fade" id="balanceModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Баланс пользователя</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-2 text-secondary" id="bm-user"></div>
-        <div class="mb-2">Текущий баланс: <strong id="bm-balance">0.00</strong> RUB</div>
-        <form id="bm-form" class="d-flex gap-2" method="post">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <input class="form-control" type="text" inputmode="decimal" name="delta" placeholder="± сумма" required />
-          <button class="btn btn-primary" type="submit">Изменить</button>
-        </form>
-        <hr/>
-        <div class="mb-1">Рефералы: <strong id="bm-refcount">0</strong></div>
-        <div class="small text-secondary" style="max-height:180px;overflow:auto;">
-          <ul class="list-unstyled mb-0" id="bm-reflist"></ul>
+
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table id="users-table" class="table table-vcenter card-table table-nowrap">
+            <thead>
+              <tr>
+                <th>Пользователь</th>
+                <th>Статус</th>
+                <th>Ключи</th>
+                <th>Баланс</th>
+                <th class="w-1"></th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody"
+                   data-fetch-url="{{ url_for('users_table_partial', page=current_page or 1, per_page=per_page or 20, q=q or '') }}"
+                   data-fetch-interval="10000"
+                   data-current-page="{{ current_page or 1 }}"
+                   data-per-page="{{ per_page or 20 }}"
+                   data-q="{{ q or '' }}">
+              {% for user in users %}
+              <tr>
+                <td>
+                  <div class="d-flex py-1 align-items-center">
+                    <div class="flex-fill">
+                      <div class="font-weight-medium">@{{ user.username or 'N/A' }}</div>
+                      <div class="text-muted small"><a href="#" class="text-reset">{{ user.telegram_id }}</a></div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  {% if user.is_banned %}
+                    <span class="badge bg-red-lt">Забанен</span>
+                  {% else %}
+                    <span class="badge bg-green-lt">Активен</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="text-muted small">
+                    {% if user.keys_count and user.keys_count > 0 %}
+                      <span class="badge bg-azure-lt">{{ user.keys_count }} шт.</span>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  <div class="fw-bold">{{ '%.2f'|format(user.balance or 0) }} ₽</div>
+                </td>
+                <td class="text-end">
+                  <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                      Действия
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                      <a class="dropdown-item" href="{{ url_for('admin_keys_page') }}?user_id={{ user.telegram_id }}">
+                        <i class="ti ti-key-plus me-2 text-primary"></i> Выдать ключ
+                      </a>
+                      <button type="button" class="dropdown-item btn-user-balance-sign" 
+                              data-uid="{{ user.telegram_id }}" 
+                              data-username="{{ user.username or 'N/A' }}"
+                              data-balance="{{ '%.2f'|format(user.balance or 0) }}"
+                              data-referrals='{{ user.referrals|tojson }}'
+                              data-sign="+">
+                        <i class="ti ti-plus me-2 text-success"></i> Пополнить баланс
+                      </button>
+                      <button type="button" class="dropdown-item btn-user-balance-sign"
+                              data-uid="{{ user.telegram_id }}"
+                              data-username="{{ user.username or 'N/A' }}"
+                              data-balance="{{ '%.2f'|format(user.balance or 0) }}"
+                              data-referrals='{{ user.referrals|tojson }}'
+                              data-sign="-">
+                        <i class="ti ti-minus me-2 text-danger"></i> Списать баланс
+                      </button>
+                      <button type="button" class="dropdown-item" data-toggle="keys" data-user="{{ user.telegram_id }}" data-keys-url="{{ url_for('user_keys_table_partial', user_id=user.telegram_id) }}">
+                        <i class="ti ti-key me-2 text-azure"></i> Показать ключи
+                      </button>
+                      <div class="dropdown-divider"></div>
+                      {% if user.is_banned %}
+                      <form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <button type="submit" class="dropdown-item text-success">
+                          <i class="ti ti-circle-check me-2"></i> Разбанить
+                        </button>
+                      </form>
+                      {% else %}
+                      <form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Вы уверены, что хотите забанить этого пользователя?">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <button type="submit" class="dropdown-item text-warning">
+                          <i class="ti ti-ban me-2"></i> Забанить
+                        </button>
+                      </form>
+                      {% endif %}
+                      {% if user.keys_count and user.keys_count > 0 %}
+                      <form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя. Продолжить?">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <button type="submit" class="dropdown-item text-danger">
+                          <i class="ti ti-trash-x me-2"></i> Отозвать все ключи
+                        </button>
+                      </form>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              <tr class="keys-row" id="keys-{{ user.telegram_id }}" style="display:none;">
+                <td colspan="5">
+                  <div class="card card-sm m-2">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                      <strong>Ключи пользователя</strong>
+                      <button type="button" class="btn-close" onclick="document.getElementById('keys-{{ user.telegram_id }}').style.display='none'; document.querySelector('[data-toggle=\'keys\'][data-user=\'{{ user.telegram_id }}\']').classList.replace('btn-secondary', 'btn-outline-secondary');" aria-label="Close"></button>
+                    </div>
+                    <div class="card-body p-0 keys-container">
+                      <div class="p-3 text-center text-muted">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        Загрузка ключей...
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
+
+    <nav aria-label="Пагинация пользователей" class="mt-3">
+      <ul class="pagination">
+        {% set cp = (current_page or 1) %}
+        {% set tp = (total_pages or 1) %}
+        <li class="page-item {% if cp <= 1 %}disabled{% endif %}">
+          <a class="page-link" href="#" data-page="{{ cp - 1 }}" aria-label="Предыдущая">&laquo;</a>
+        </li>
+        {# вычислим окно страниц #}
+        {% set start = 1 if tp <= 7 else (cp - 2 if cp - 2 > 1 else 1) %}
+        {% set end = tp if tp <= 7 else (cp + 2 if cp + 2 < tp else tp) %}
+        {% if start > 1 %}
+          <li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>
+          {% if start > 2 %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endif %}
+        {% for p in range(start, end + 1) %}
+          <li class="page-item {% if p == cp %}active{% endif %}"><a class="page-link" href="#" data-page="{{ p }}">{{ p }}</a></li>
+        {% endfor %}
+        {% if end < tp %}
+          {% if end < tp - 1 %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+          <li class="page-item"><a class="page-link" href="#" data-page="{{ tp }}">{{ tp }}</a></li>
+        {% endif %}
+        <li class="page-item {% if cp >= tp %}disabled{% endif %}">
+          <a class="page-link" href="#" data-page="{{ cp + 1 }}" aria-label="Следующая">&raquo;</a>
+        </li>
+      </ul>
+      <div class="small text-secondary">Всего: {{ total_users or 0 }}</div>
+      <input type="hidden" id="users-base-url" value="{{ url_for('users_table_partial') }}" />
+    </nav>
   </div>
 </div>
-
-<div class="card">
-  <div class="card-body">
-    <div class="table-responsive">
-      <table id="users-table" class="table table-vcenter card-table table-nowrap">
-        <thead>
-          <tr>
-            <th>Пользователь</th>
-            <th>Статус</th>
-            <th>Ключи</th>
-            <th>Баланс</th>
-            <th class="w-1"></th>
-          </tr>
-        </thead>
-        <tbody id="users-tbody"
-               data-fetch-url="{{ url_for('users_table_partial', page=current_page or 1, per_page=per_page or 20, q=q or '') }}"
-               data-fetch-interval="10000"
-               data-current-page="{{ current_page or 1 }}"
-               data-per-page="{{ per_page or 20 }}"
-               data-q="{{ q or '' }}">
-          {% for user in users %}
-          <tr>
-            <td>
-              <div class="d-flex py-1 align-items-center">
-                <div class="flex-fill">
-                  <div class="font-weight-medium">@{{ user.username or 'N/A' }}</div>
-                  <div class="text-muted small"><a href="#" class="text-reset">{{ user.telegram_id }}</a></div>
-                </div>
-              </div>
-            </td>
-            <td>
-              {% if user.is_banned %}
-                <span class="badge bg-red-lt">Забанен</span>
-              {% else %}
-                <span class="badge bg-green-lt">Активен</span>
-              {% endif %}
-            </td>
-            <td>
-              <div class="text-muted small">
-                {% if user.keys_count and user.keys_count > 0 %}
-                  <span class="badge bg-azure-lt">{{ user.keys_count }} шт.</span>
-                {% else %}
-                  —
-                {% endif %}
-              </div>
-            </td>
-            <td>
-              <div class="fw-bold">{{ '%.2f'|format(user.balance or 0) }} ₽</div>
-            </td>
-            <td class="text-end">
-              <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  Действия
-                </button>
-                <div class="dropdown-menu dropdown-menu-end">
-                  <a class="dropdown-item" href="{{ url_for('admin_keys_page') }}?user_id={{ user.telegram_id }}">
-                    <i class="ti ti-key-plus me-2 text-primary"></i> Выдать ключ
-                  </a>
-                  <button type="button" class="dropdown-item btn-user-balance-sign" 
-                          data-uid="{{ user.telegram_id }}" 
-                          data-username="{{ user.username or 'N/A' }}"
-                          data-balance="{{ '%.2f'|format(user.balance or 0) }}"
-                          data-referrals='{{ user.referrals|tojson }}'
-                          data-sign="+">
-                    <i class="ti ti-plus me-2 text-success"></i> Пополнить баланс
-                  </button>
-                  <button type="button" class="dropdown-item btn-user-balance-sign"
-                          data-uid="{{ user.telegram_id }}"
-                          data-username="{{ user.username or 'N/A' }}"
-                          data-balance="{{ '%.2f'|format(user.balance or 0) }}"
-                          data-referrals='{{ user.referrals|tojson }}'
-                          data-sign="-">
-                    <i class="ti ti-minus me-2 text-danger"></i> Списать баланс
-                  </button>
-                  <button type="button" class="dropdown-item" data-toggle="keys" data-user="{{ user.telegram_id }}" data-keys-url="{{ url_for('user_keys_table_partial', user_id=user.telegram_id) }}">
-                    <i class="ti ti-key me-2 text-azure"></i> Показать ключи
-                  </button>
-                  <div class="dropdown-divider"></div>
-                  {% if user.is_banned %}
-                  <form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                    <button type="submit" class="dropdown-item text-success">
-                      <i class="ti ti-circle-check me-2"></i> Разбанить
-                    </button>
-                  </form>
-                  {% else %}
-                  <form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Вы уверены, что хотите забанить этого пользователя?">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                    <button type="submit" class="dropdown-item text-warning">
-                      <i class="ti ti-ban me-2"></i> Забанить
-                    </button>
-                  </form>
-                  {% endif %}
-                  {% if user.keys_count and user.keys_count > 0 %}
-                  <form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя. Продолжить?">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                    <button type="submit" class="dropdown-item text-danger">
-                      <i class="ti ti-trash-x me-2"></i> Отозвать все ключи
-                    </button>
-                  </form>
-                  {% endif %}
-                </div>
-              </div>
-            </td>
-          </tr>
-          <tr class="keys-row" id="keys-{{ user.telegram_id }}" style="display:none;">
-            <td colspan="5">
-              <div class="card card-sm m-2">
-                <div class="card-header py-2 d-flex justify-content-between align-items-center">
-                  <strong>Ключи пользователя</strong>
-                  <button type="button" class="btn-close" onclick="document.getElementById('keys-{{ user.telegram_id }}').style.display='none'; document.querySelector('[data-toggle=\'keys\'][data-user=\'{{ user.telegram_id }}\']').classList.replace('btn-secondary', 'btn-outline-secondary');" aria-label="Close"></button>
-                </div>
-                <div class="card-body p-0 keys-container">
-                  <div class="p-3 text-center text-muted">
-                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-                    Загрузка ключей...
-                  </div>
-                </div>
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<nav aria-label="Пагинация пользователей" class="mt-3">
-  <ul class="pagination">
-    {% set cp = (current_page or 1) %}
-    {% set tp = (total_pages or 1) %}
-    <li class="page-item {% if cp <= 1 %}disabled{% endif %}">
-      <a class="page-link" href="#" data-page="{{ cp - 1 }}" aria-label="Предыдущая">&laquo;</a>
-    </li>
-    {# вычислим окно страниц #}
-    {% set start = 1 if tp <= 7 else (cp - 2 if cp - 2 > 1 else 1) %}
-    {% set end = tp if tp <= 7 else (cp + 2 if cp + 2 < tp else tp) %}
-    {% if start > 1 %}
-      <li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>
-      {% if start > 2 %}
-        <li class="page-item disabled"><span class="page-link">…</span></li>
-      {% endif %}
-    {% endif %}
-    {% for p in range(start, end + 1) %}
-      <li class="page-item {% if p == cp %}active{% endif %}"><a class="page-link" href="#" data-page="{{ p }}">{{ p }}</a></li>
-    {% endfor %}
-    {% if end < tp %}
-      {% if end < tp - 1 %}
-        <li class="page-item disabled"><span class="page-link">…</span></li>
-      {% endif %}
-      <li class="page-item"><a class="page-link" href="#" data-page="{{ tp }}">{{ tp }}</a></li>
-    {% endif %}
-    <li class="page-item {% if cp >= tp %}disabled{% endif %}">
-      <a class="page-link" href="#" data-page="{{ cp + 1 }}" aria-label="Следующая">&raquo;</a>
-    </li>
-  </ul>
-  <div class="small text-secondary">Всего: {{ total_users or 0 }}</div>
-  <input type="hidden" id="users-base-url" value="{{ url_for('users_table_partial') }}" />
-</nav>
 
   <script>
   (function(){

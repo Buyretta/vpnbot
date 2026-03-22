@@ -20,120 +20,119 @@
     </div>
 
     <div class="row row-cards mt-1">
-  <div class="col-lg-8">
-    <!-- Speedtests compact block (left column, compact) -->
-    <div class="card card-compact glass mb-3">
-      <div class="card-body py-2">
-        <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-          <div class="me-2" style="min-width:260px; max-width:420px; flex:1 1 auto;">
-            <label class="form-label mb-1 small">Хост для мониторинга</label>
-            <div class="soft-select" id="st_host_softselect" data-target="st-host">
-              <button type="button" class="soft-select-toggle" id="st_host_toggle">Выберите хост...</button>
-              <div class="soft-select-menu" id="st_host_menu"></div>
-              <select id="st-host" class="form-select form-select-sm select-soft">
-                {% for h in hosts %}
-                <option value="{{ h.host_name }}">{{ h.host_name }}</option>
-                {% endfor %}
-              </select>
+      <div class="col-lg-8">
+        <!-- Speedtests compact block (left column, compact) -->
+        <div class="card card-compact glass mb-3">
+          <div class="card-body py-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+              <div class="me-2" style="min-width:260px; max-width:420px; flex:1 1 auto;">
+                <label class="form-label mb-1 small">Хост для мониторинга</label>
+                <div class="soft-select" id="st_host_softselect" data-target="st-host">
+                  <button type="button" class="soft-select-toggle" id="st_host_toggle">Выберите хост...</button>
+                  <div class="soft-select-menu" id="st_host_menu"></div>
+                  <select id="st-host" class="form-select form-select-sm select-soft">
+                    {% for h in hosts %}
+                    <option value="{{ h.host_name }}">{{ h.host_name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="flex-grow-1 min-w-0">
+                <div class="small text-secondary mb-1">Последний результат</div>
+                <div id="st-latest" class="tiny text-truncate">—</div>
+              </div>
+              <div class="ms-auto d-flex gap-2">
+                <form id="st-run-form" action="#" method="post" class="m-0">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <input type="hidden" name="method" value="both" />
+                  <button type="submit" class="btn btn-primary btn-sm pill px-3">
+                    <i class="ti ti-bolt me-1"></i> Тест
+                  </button>
+                </form>
+                <form id="st-run-all-form" action="{{ url_for('run_all_speedtests_route') }}" method="post" class="m-0">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <button type="submit" class="btn btn-outline-secondary btn-sm pill px-3">
+                    <i class="ti ti-refresh me-1"></i> Все
+                  </button>
+                </form>
+              </div>
+            </div>
+            <div class="chart" style="height: 240px;">
+              <canvas id="st-top-canvas"></canvas>
             </div>
           </div>
-          <div class="flex-grow-1 min-w-0">
-            <div class="small text-secondary mb-1">Последний результат</div>
-            <div id="st-latest" class="tiny text-truncate">—</div>
-          </div>
-          <div class="ms-auto d-flex gap-2">
-            <form id="st-run-form" action="#" method="post" class="m-0">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <input type="hidden" name="method" value="both" />
-              <button type="submit" class="btn btn-primary btn-sm pill px-3">
-                <i class="ti ti-bolt me-1"></i> Тест
-              </button>
-            </form>
-            <form id="st-run-all-form" action="{{ url_for('run_all_speedtests_route') }}" method="post" class="m-0">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <button type="submit" class="btn btn-outline-secondary btn-sm pill px-3">
-                <i class="ti ti-refresh me-1"></i> Все
-              </button>
-            </form>
-          </div>
         </div>
-        <div class="chart" style="height: 240px;">
-          <canvas id="st-top-canvas"></canvas>
-        </div>
-      </div>
-    </div>
 
-    <div class="card">
-      <div class="card-header py-2">
-        <h3 class="card-title">Динамика (30 дней)</h3>
-        <div class="card-actions">
-          <span class="badge bg-primary-lt">Пользователи</span>
-          <span class="badge bg-green-lt">Ключи</span>
+        <div class="card">
+          <div class="card-header py-2">
+            <h3 class="card-title">Динамика (30 дней)</h3>
+            <div class="card-actions">
+              <span class="badge bg-primary-lt">Пользователи</span>
+              <span class="badge bg-green-lt">Ключи</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="chart" style="height: 300px">
+              <canvas id="combinedStatsChart"></canvas>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="card-body">
-        <div class="chart" style="height: 300px">
-          <canvas id="combinedStatsChart"></canvas>
+
+      <div class="col-lg-4">
+        <div class="card" style="max-height: 605px; display: flex; flex-direction: column;">
+          <div class="card-header py-2">
+            <h3 class="card-title">Недавние транзакции</h3>
+          </div>
+          <div class="card-body p-0 flex-grow-1 overflow-auto">
+            {% if transactions %}
+            <div class="table-responsive">
+              <table class="table table-vcenter card-table table-nowrap">
+                <thead>
+                  <tr>
+                    <th class="py-1">Юзер</th>
+                    <th class="py-1 text-center">План</th>
+                    <th class="py-1">Цена</th>
+                    <th class="py-1">Дата</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-transactions"
+                       data-fetch-url="{{ url_for('dashboard_transactions_partial', page=current_page) }}"
+                       data-fetch-interval="10000">
+                  {% include 'Default/partials/dashboard_transactions.html' %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <div class="p-3 text-center text-secondary">
+              <i class="ti ti-info-circle mb-2 fs-1"></i>
+              <p class="mb-0">Пока нет транзакций.</p>
+            </div>
+            {% endif %}
+          </div>
+          {% if total_pages > 1 %}
+          <div class="card-footer py-2">
+            <div class="d-flex justify-content-center">
+              <ul class="pagination pagination-sm m-0">
+                <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('dashboard_page', page=current_page - 1) }}" aria-label="Previous">«</a>
+                </li>
+                {% for p in range(1, total_pages + 1) %}
+                <li class="page-item {% if p == current_page %}active{% endif %}">
+                  <a class="page-link" href="{{ url_for('dashboard_page', page=p) }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+                <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('dashboard_page', page=current_page + 1) }}" aria-label="Next">»</a>
+                </li>
+              </ul>
+            </div>
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>
   </div>
-
-  <div class="col-lg-4">
-    <div class="card" style="max-height: 605px; display: flex; flex-direction: column;">
-      <div class="card-header py-2">
-        <h3 class="card-title">Недавние транзакции</h3>
-      </div>
-      <div class="card-body p-0 flex-grow-1 overflow-auto">
-        {% if transactions %}
-        <div class="table-responsive">
-          <table class="table table-vcenter card-table table-nowrap">
-            <thead>
-              <tr>
-                <th class="py-1">Юзер</th>
-                <th class="py-1 text-center">План</th>
-                <th class="py-1">Цена</th>
-                <th class="py-1">Дата</th>
-              </tr>
-            </thead>
-            <tbody id="dash-transactions"
-                   data-fetch-url="{{ url_for('dashboard_transactions_partial', page=current_page) }}"
-                   data-fetch-interval="10000">
-              {% include 'Default/partials/dashboard_transactions.html' %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <div class="p-3 text-center text-secondary">
-          <i class="ti ti-info-circle mb-2 fs-1"></i>
-          <p class="mb-0">Пока нет транзакций.</p>
-        </div>
-        {% endif %}
-      </div>
-      {% if total_pages > 1 %}
-      <div class="card-footer py-2">
-        <div class="d-flex justify-content-center">
-          <ul class="pagination pagination-sm m-0">
-            <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('dashboard_page', page=current_page - 1) }}" aria-label="Previous">«</a>
-            </li>
-            {% for p in range(1, total_pages + 1) %}
-            <li class="page-item {% if p == current_page %}active{% endif %}">
-              <a class="page-link" href="{{ url_for('dashboard_page', page=p) }}">{{ p }}</a>
-            </li>
-            {% endfor %}
-            <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('dashboard_page', page=current_page + 1) }}" aria-label="Next">»</a>
-            </li>
-          </ul>
-        </div>
-      </div>
-      {% endif %}
-    </div>
-
-    </div>
-  </div>
-</div>
 </div>
 
 <!-- Modal: подробный график спидтеста -->
@@ -170,43 +169,30 @@
       </div>
     </div>
   </div>
-  
 </div>
 
 <!-- Modal: выполнение теста скорости -->
 <div class="modal modal-blur fade" id="speedtestRunningModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header">
+      <div class="modal-header border-0 pb-0">
         <h5 class="modal-title">Идёт измерение скорости…</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body d-flex align-items-center gap-3">
-        <div class="spinner-aurora" aria-hidden="true"></div>
-        <div>
-          <div class="fw-semibold">Пожалуйста, подождите 10–30 секунд</div>
-          <div class="text-secondary small">Мы запускаем SSH и сетевой тест. Окно закроется автоматически по завершении.</div>
-        </div>
-      </div>
-    </div>
-<script id="chart-data" type="application/json">
-  {{ chart_data | tojson }}
-</script>
-
-<!-- Add a centered modal with animated spinner -->
-<div class="modal fade" id="speedtestRunningModal" tabindex="-1" aria-labelledby="speedtestRunningModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
       <div class="modal-body text-center py-4">
         <div class="spinner-border text-primary mb-3" role="status">
           <span class="visually-hidden">Загрузка...</span>
         </div>
-        <h5 class="modal-title" id="speedtestRunningModalLabel">Выполняется тест скорости...</h5>
-        <p class="text-muted mb-0">Это может занять несколько минут. Пожалуйста, подождите.</p>
+        <div class="fw-semibold">Пожалуйста, подождите 10–30 секунд</div>
+        <div class="text-secondary small">Мы запускаем SSH и сетевой тест. Окно закроется автоматически по завершении.</div>
       </div>
     </div>
   </div>
 </div>
+
+<script id="chart-data" type="application/json">
+  {{ chart_data | tojson }}
+</script>
 
 <script>
   const CHART_DATA = JSON.parse(document.getElementById('chart-data').textContent);
