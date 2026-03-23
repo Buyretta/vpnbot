@@ -1,0 +1,623 @@
+{% extends "Bootstrap/base.html" %}
+{% block title %}Конструктор кнопок{% endblock %}
+{% block content %}
+<div class="container-fluid">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h2 class="h4 mb-0">Конструктор кнопок</h2>
+      <div class="text-muted small">Настройка меню бота и предпросмотр</div>
+    </div>
+    <div class="btn-group btn-group-sm">
+      <button type="button" class="btn btn-outline-primary" id="add-button-btn"><i class="bi bi-plus-lg me-1"></i>Добавить</button>
+      <button type="button" class="btn btn-outline-secondary" id="save-layout-btn"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+      <button type="button" class="btn btn-outline-info" id="preview-btn"><i class="bi bi-eye me-1"></i>Предпросмотр</button>
+      <button type="button" class="btn btn-outline-warning" id="force-migration-btn"><i class="bi bi-arrow-repeat me-1"></i>Сброс</button>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-xl-7">
+      <div class="card">
+        <div class="card-body">
+          <div class="row g-2 align-items-end mb-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="menu-type-select">Тип меню</label>
+              <select class="form-select" id="menu-type-select">
+                <option value="main_menu">Главное меню</option>
+                <option value="admin_menu">Админ меню</option>
+                <option value="profile_menu">Меню профиля</option>
+                <option value="support_menu">Меню поддержки</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <div class="small text-muted">Перетаскивайте элементы в списке для изменения порядка. Позиции и ширина сохраняются.</div>
+            </div>
+          </div>
+          <div class="list-group" id="button-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-5">
+      <div class="card mb-3">
+        <div class="card-header">
+          <div class="fw-semibold">Свойства кнопки</div>
+        </div>
+        <div class="card-body">
+          <form id="button-properties-form">
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label" for="button-id">ID кнопки</label>
+                <input type="text" class="form-control" id="button-id" readonly>
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="button-text">Текст кнопки</label>
+                <input type="text" class="form-control" id="button-text" placeholder="Текст кнопки">
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="action-type">Тип действия</label>
+                <select class="form-select" id="action-type">
+                  <option value="callback">Callback (внутреннее действие)</option>
+                  <option value="url">URL (внешняя ссылка)</option>
+                </select>
+              </div>
+              <div class="col-12" id="callback-data-group">
+                <label class="form-label" for="callback-data">Callback Data</label>
+                <input type="text" class="form-control" id="callback-data" placeholder="callback_data">
+              </div>
+              <div class="col-12 d-none" id="url-group">
+                <label class="form-label" for="button-url">URL</label>
+                <input type="url" class="form-control" id="button-url" placeholder="https://example.com">
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="row-position">Строка</label>
+                <input type="number" class="form-control" id="row-position" min="0" value="0">
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="column-position">Колонка</label>
+                <input type="number" class="form-control" id="column-position" min="0" value="0">
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="button-width">Ширина</label>
+                <select class="form-select" id="button-width">
+                  <option value="1">1 колонка</option>
+                  <option value="2">2 колонки</option>
+                  <option value="3">3 колонки</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="sort-order">Порядок</label>
+                <input type="number" class="form-control" id="sort-order" min="0" value="0">
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="is-active" checked>
+                  <label class="form-check-label" for="is-active">Активна</label>
+                </div>
+              </div>
+              <div class="col-12 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                <button type="button" class="btn btn-outline-danger d-none" id="delete-button-btn">Удалить</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <div class="fw-semibold">Предпросмотр</div>
+          <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-secondary" id="refresh-preview-btn"><i class="bi bi-arrow-clockwise"></i></button>
+            <button type="button" class="btn btn-outline-secondary" id="clear-preview-btn"><i class="bi bi-x-lg"></i></button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="preview-area" class="text-muted">Нажмите «Предпросмотр»</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="add-button-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Добавить кнопку</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="add-button-form">
+          <div class="mb-2">
+            <label class="form-label" for="new-button-id">ID кнопки</label>
+            <input type="text" class="form-control" id="new-button-id" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label" for="new-button-text">Текст кнопки</label>
+            <input type="text" class="form-control" id="new-button-text" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label" for="new-action-type">Тип действия</label>
+            <select class="form-select" id="new-action-type">
+              <option value="callback">Callback (внутреннее действие)</option>
+              <option value="url">URL (внешняя ссылка)</option>
+            </select>
+          </div>
+          <div class="mb-2" id="new-callback-data-group">
+            <label class="form-label" for="new-callback-data">Callback Data</label>
+            <input type="text" class="form-control" id="new-callback-data">
+          </div>
+          <div class="mb-2 d-none" id="new-url-group">
+            <label class="form-label" for="new-button-url">URL</label>
+            <input type="url" class="form-control" id="new-button-url" placeholder="https://example.com">
+          </div>
+          <div class="mb-0">
+            <label class="form-label" for="new-button-width">Ширина</label>
+            <select class="form-select" id="new-button-width">
+              <option value="1">1 колонка</option>
+              <option value="2">2 колонки</option>
+              <option value="3">3 колонки</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-primary" id="confirm-add-button">Добавить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+  class ButtonConstructor {
+    constructor() {
+      this.currentMenuType = localStorage.getItem('buttonConstructorMenuType') || 'main_menu';
+      this.selectedButton = null;
+      this.buttons = [];
+      this.sortable = null;
+      this.isPreviewLoading = false;
+      this.init();
+    }
+
+    init() {
+      const menuSelect = document.getElementById('menu-type-select');
+      if (menuSelect) menuSelect.value = this.currentMenuType;
+      this.bindEvents();
+      this.loadButtons();
+      this.disableLogoutButton();
+      this.toggleActionFields('callback');
+      this.toggleNewActionFields('callback');
+    }
+
+    bindEvents() {
+      document.getElementById('menu-type-select')?.addEventListener('change', (e) => {
+        this.currentMenuType = e.target.value;
+        localStorage.setItem('buttonConstructorMenuType', this.currentMenuType);
+        this.selectedButton = null;
+        this.resetPropertiesForm();
+        this.loadButtons();
+      });
+
+      document.getElementById('add-button-btn')?.addEventListener('click', () => this.showAddButtonModal());
+      document.getElementById('save-layout-btn')?.addEventListener('click', () => this.saveLayout());
+      document.getElementById('preview-btn')?.addEventListener('click', () => this.showPreview());
+      document.getElementById('refresh-preview-btn')?.addEventListener('click', () => this.showPreview());
+      document.getElementById('clear-preview-btn')?.addEventListener('click', () => this.clearPreview());
+      document.getElementById('force-migration-btn')?.addEventListener('click', () => this.forceMigration());
+      document.getElementById('confirm-add-button')?.addEventListener('click', () => this.addNewButton());
+      document.getElementById('delete-button-btn')?.addEventListener('click', () => this.deleteButton(this.selectedButton?.id));
+      document.getElementById('button-properties-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.saveButtonProperties();
+      });
+
+      document.getElementById('action-type')?.addEventListener('change', (e) => {
+        this.toggleActionFields(e.target.value);
+        if (this.selectedButton) this.saveButtonProperties();
+      });
+      document.getElementById('new-action-type')?.addEventListener('change', (e) => this.toggleNewActionFields(e.target.value));
+
+      const autosaveIds = ['button-text', 'callback-data', 'button-url', 'row-position', 'column-position', 'button-width', 'sort-order', 'is-active'];
+      autosaveIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const evt = el.tagName === 'INPUT' && el.type === 'text' ? 'input' : 'change';
+        el.addEventListener(evt, () => {
+          if (!this.selectedButton) return;
+          if (id === 'button-width') this.updateButtonWidthPreview(parseInt(el.value || '1', 10));
+          this.saveButtonProperties();
+        });
+      });
+    }
+
+    getCSRFToken() {
+      const token = document.querySelector('meta[name="csrf-token"]');
+      return token ? token.getAttribute('content') : '';
+    }
+
+    async loadButtons() {
+      try {
+        const response = await fetch(`/api/button-configs/${this.currentMenuType}`, {
+          headers: { 'X-CSRFToken': this.getCSRFToken() }
+        });
+        const result = await response.json();
+        if (!result.success) {
+          this.showNotification(`Ошибка загрузки: ${result.error || 'неизвестно'}`, 'danger');
+          return;
+        }
+        this.buttons = Array.isArray(result.data) ? result.data : [];
+        this.renderButtons();
+      } catch (error) {
+        this.showNotification(`Ошибка загрузки: ${error.message}`, 'danger');
+      }
+    }
+
+    renderButtons() {
+      const grid = document.getElementById('button-grid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      if (!this.buttons.length) {
+        grid.innerHTML = '<div class="list-group-item text-muted">Нет кнопок. Нажмите «Добавить».</div>';
+        return;
+      }
+
+      const sortedButtons = [...this.buttons].sort((a, b) => {
+        if ((a.row_position || 0) !== (b.row_position || 0)) return (a.row_position || 0) - (b.row_position || 0);
+        if ((a.column_position || 0) !== (b.column_position || 0)) return (a.column_position || 0) - (b.column_position || 0);
+        return (a.sort_order || 0) - (b.sort_order || 0);
+      });
+
+      sortedButtons.forEach((button) => grid.appendChild(this.createButtonElement(button)));
+
+      if (this.sortable) this.sortable.destroy();
+      this.sortable = new Sortable(grid, {
+        animation: 120,
+        onEnd: () => {
+          this.updateButtonPositions();
+          this.showPreview();
+        }
+      });
+    }
+
+    createButtonElement(button) {
+      const item = document.createElement('div');
+      item.className = 'list-group-item';
+      item.dataset.buttonId = button.id;
+      item.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between gap-2">
+          <div class="min-w-0">
+            <div class="fw-semibold text-truncate">${button.text || ''}</div>
+            <div class="small text-muted text-truncate">${button.button_id || ''} • ширина ${button.button_width || 1}x • row ${button.row_position || 0}, col ${button.column_position || 0}</div>
+          </div>
+          <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-primary btn-edit"><i class="bi bi-pencil"></i></button>
+            <button type="button" class="btn btn-outline-danger btn-delete"><i class="bi bi-trash"></i></button>
+            <button type="button" class="btn btn-outline-secondary" title="Перетащить"><i class="bi bi-grip-vertical"></i></button>
+          </div>
+        </div>
+      `;
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-edit')) {
+          this.selectButton(button.id);
+          return;
+        }
+        if (e.target.closest('.btn-delete')) {
+          this.deleteButton(button.id);
+          return;
+        }
+        this.selectButton(button.id);
+      });
+      return item;
+    }
+
+    selectButton(buttonId) {
+      document.querySelectorAll('#button-grid .list-group-item').forEach((el) => el.classList.remove('active'));
+      const row = document.querySelector(`#button-grid .list-group-item[data-button-id="${buttonId}"]`);
+      if (row) row.classList.add('active');
+      this.selectedButton = this.buttons.find((b) => b.id === buttonId) || null;
+      if (!this.selectedButton) return;
+      this.loadButtonProperties();
+    }
+
+    loadButtonProperties() {
+      if (!this.selectedButton) return;
+      document.getElementById('button-id').value = this.selectedButton.button_id || '';
+      document.getElementById('button-text').value = this.selectedButton.text || '';
+      document.getElementById('action-type').value = this.selectedButton.url ? 'url' : 'callback';
+      document.getElementById('callback-data').value = this.selectedButton.callback_data || '';
+      document.getElementById('button-url').value = this.selectedButton.url || '';
+      document.getElementById('row-position').value = this.selectedButton.row_position || 0;
+      document.getElementById('column-position').value = this.selectedButton.column_position || 0;
+      document.getElementById('button-width').value = this.selectedButton.button_width || 1;
+      document.getElementById('sort-order').value = this.selectedButton.sort_order || 0;
+      document.getElementById('is-active').checked = Number(this.selectedButton.is_active) === 1;
+      this.toggleActionFields(this.selectedButton.url ? 'url' : 'callback');
+      document.getElementById('delete-button-btn').classList.remove('d-none');
+    }
+
+    resetPropertiesForm() {
+      document.getElementById('button-properties-form')?.reset();
+      document.getElementById('delete-button-btn')?.classList.add('d-none');
+      this.toggleActionFields('callback');
+    }
+
+    toggleActionFields(actionType) {
+      document.getElementById('callback-data-group')?.classList.toggle('d-none', actionType !== 'callback');
+      document.getElementById('url-group')?.classList.toggle('d-none', actionType === 'callback');
+    }
+
+    toggleNewActionFields(actionType) {
+      document.getElementById('new-callback-data-group')?.classList.toggle('d-none', actionType !== 'callback');
+      document.getElementById('new-url-group')?.classList.toggle('d-none', actionType === 'callback');
+    }
+
+    updateButtonWidthPreview(newWidth) {
+      if (!this.selectedButton) return;
+      this.selectedButton.button_width = Number.isFinite(newWidth) ? newWidth : 1;
+      this.renderButtons();
+      this.selectButton(this.selectedButton.id);
+    }
+
+    async saveButtonProperties() {
+      if (!this.selectedButton) return;
+      const data = {
+        text: document.getElementById('button-text').value,
+        callback_data: document.getElementById('action-type').value === 'callback' ? document.getElementById('callback-data').value : null,
+        url: document.getElementById('action-type').value === 'url' ? document.getElementById('button-url').value : null,
+        row_position: parseInt(document.getElementById('row-position').value || '0', 10),
+        column_position: parseInt(document.getElementById('column-position').value || '0', 10),
+        button_width: parseInt(document.getElementById('button-width').value || '1', 10),
+        sort_order: parseInt(document.getElementById('sort-order').value || '0', 10),
+        is_active: document.getElementById('is-active').checked
+      };
+      try {
+        const response = await fetch(`/api/button-configs/${this.selectedButton.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCSRFToken() },
+          body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (!result.success) {
+          this.showNotification(`Ошибка обновления: ${result.error || 'неизвестно'}`, 'danger');
+          return;
+        }
+        const idx = this.buttons.findIndex((b) => b.id === this.selectedButton.id);
+        if (idx >= 0) this.buttons[idx] = { ...this.buttons[idx], ...data };
+        this.renderButtons();
+        this.selectButton(this.selectedButton.id);
+      } catch (error) {
+        this.showNotification(`Ошибка: ${error.message}`, 'danger');
+      }
+    }
+
+    showAddButtonModal() {
+      document.getElementById('add-button-form')?.reset();
+      document.getElementById('new-action-type').value = 'callback';
+      this.toggleNewActionFields('callback');
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('add-button-modal')).show();
+    }
+
+    async addNewButton() {
+      const data = {
+        menu_type: this.currentMenuType,
+        button_id: document.getElementById('new-button-id').value.trim(),
+        text: document.getElementById('new-button-text').value.trim(),
+        callback_data: document.getElementById('new-action-type').value === 'callback' ? document.getElementById('new-callback-data').value.trim() : null,
+        url: document.getElementById('new-action-type').value === 'url' ? document.getElementById('new-button-url').value.trim() : null,
+        row_position: 0,
+        column_position: 0,
+        button_width: parseInt(document.getElementById('new-button-width').value || '1', 10)
+      };
+      if (!data.button_id || !data.text) {
+        this.showNotification('Заполните ID и текст кнопки', 'danger');
+        return;
+      }
+      try {
+        const response = await fetch('/api/button-configs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCSRFToken() },
+          body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (!result.success) {
+          this.showNotification(`Ошибка добавления: ${result.error || 'неизвестно'}`, 'danger');
+          return;
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('add-button-modal')).hide();
+        await this.loadButtons();
+        this.showNotification('Кнопка добавлена', 'success');
+        this.showPreview();
+      } catch (error) {
+        this.showNotification(`Ошибка: ${error.message}`, 'danger');
+      }
+    }
+
+    async deleteButton(buttonId) {
+      if (!buttonId) return;
+      if (!window.confirm('Удалить кнопку?')) return;
+      try {
+        const response = await fetch(`/api/button-configs/${buttonId}`, {
+          method: 'DELETE',
+          headers: { 'X-CSRFToken': this.getCSRFToken() }
+        });
+        const result = await response.json();
+        if (!result.success) {
+          this.showNotification(`Ошибка удаления: ${result.error || 'неизвестно'}`, 'danger');
+          return;
+        }
+        this.selectedButton = null;
+        this.resetPropertiesForm();
+        await this.loadButtons();
+        this.showNotification('Кнопка удалена', 'success');
+        this.showPreview();
+      } catch (error) {
+        this.showNotification(`Ошибка: ${error.message}`, 'danger');
+      }
+    }
+
+    updateButtonPositions() {
+      const list = Array.from(document.querySelectorAll('#button-grid .list-group-item'));
+      const orders = [];
+      let row = 0;
+      let col = 0;
+
+      list.forEach((el, idx) => {
+        const id = Number(el.dataset.buttonId);
+        const btn = this.buttons.find((b) => b.id === id);
+        if (!btn) return;
+        const w = Math.max(1, Number(btn.button_width || 1));
+        const span = w >= 2 ? 2 : 1;
+        if (col + span > 2) {
+          row += 1;
+          col = 0;
+        }
+        orders.push({
+          id: btn.id,
+          button_id: btn.button_id,
+          sort_order: idx,
+          row_position: row,
+          column_position: col,
+          button_width: w
+        });
+        col += span;
+        if (col >= 2) {
+          row += 1;
+          col = 0;
+        }
+      });
+      this.saveButtonOrders(orders);
+    }
+
+    async saveButtonOrders(buttonOrders) {
+      try {
+        const response = await fetch(`/api/button-configs/${this.currentMenuType}/reorder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCSRFToken() },
+          body: JSON.stringify({ button_orders: buttonOrders })
+        });
+        const result = await response.json();
+        if (!result.success) {
+          this.showNotification(`Ошибка порядка: ${result.error || 'неизвестно'}`, 'danger');
+          return;
+        }
+        await this.loadButtons();
+      } catch (error) {
+        this.showNotification(`Ошибка: ${error.message}`, 'danger');
+      }
+    }
+
+    async saveLayout() {
+      await this.loadButtons();
+      this.showNotification('Макет сохранён', 'success');
+    }
+
+    async forceMigration() {
+      if (!window.confirm('Сбросить кнопки к настройкам по умолчанию?')) return;
+      try {
+        const response = await fetch('/api/button-configs/force-migration', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCSRFToken() }
+        });
+        const result = await response.json();
+        if (!result.success) {
+          this.showNotification(`Ошибка сброса: ${result.error || 'неизвестно'}`, 'danger');
+          return;
+        }
+        await this.loadButtons();
+        this.showPreview();
+        this.showNotification('Кнопки восстановлены', 'success');
+      } catch (error) {
+        this.showNotification(`Ошибка: ${error.message}`, 'danger');
+      }
+    }
+
+    showPreview() {
+      if (this.isPreviewLoading) return;
+      this.isPreviewLoading = true;
+      const area = document.getElementById('preview-area');
+      area.innerHTML = '<div class="text-muted">Загрузка предпросмотра…</div>';
+      if (!this.buttons.length) {
+        area.innerHTML = '<div class="text-muted">Нет кнопок для предпросмотра</div>';
+        this.isPreviewLoading = false;
+        return;
+      }
+      const rows = {};
+      this.buttons.forEach((b) => {
+        const r = Number(b.row_position || 0);
+        if (!rows[r]) rows[r] = [];
+        rows[r].push(b);
+      });
+      const menuTitle = {
+        main_menu: 'Главное меню',
+        admin_menu: 'Админ меню',
+        profile_menu: 'Меню профиля',
+        support_menu: 'Меню поддержки'
+      }[this.currentMenuType] || 'Меню';
+
+      const wrap = document.createElement('div');
+      wrap.className = 'border rounded p-2';
+      const head = document.createElement('div');
+      head.className = 'fw-semibold mb-2';
+      head.textContent = menuTitle;
+      wrap.appendChild(head);
+
+      Object.keys(rows).sort((a, b) => Number(a) - Number(b)).forEach((rowKey) => {
+        const rowButtons = rows[rowKey].sort((a, b) => Number(a.column_position || 0) - Number(b.column_position || 0));
+        const row = document.createElement('div');
+        row.className = 'd-flex gap-2 mb-2';
+        rowButtons.forEach((button) => {
+          const btn = document.createElement(button.url ? 'a' : 'button');
+          btn.className = 'btn btn-primary btn-sm flex-fill';
+          btn.textContent = String(button.text || '').replace('{count}', '2').replace('((count))', '(2)');
+          if (button.url) {
+            btn.href = button.url;
+            btn.target = '_blank';
+            btn.rel = 'noopener noreferrer';
+          } else {
+            btn.type = 'button';
+          }
+          const width = Number(button.button_width || 1);
+          if (width >= 2) btn.classList.add('w-100');
+          row.appendChild(btn);
+        });
+        wrap.appendChild(row);
+      });
+
+      area.innerHTML = '';
+      area.appendChild(wrap);
+      this.isPreviewLoading = false;
+    }
+
+    clearPreview() {
+      document.getElementById('preview-area').innerHTML = '<div class="text-muted">Предпросмотр очищен</div>';
+      this.isPreviewLoading = false;
+    }
+
+    disableLogoutButton() {
+      try {
+        const logoutButton = document.querySelector('form[action*="logout"] button[type="submit"]');
+        if (!logoutButton) return;
+        logoutButton.disabled = true;
+        logoutButton.title = 'Кнопка отключена на странице конструктора';
+      } catch (_) {}
+    }
+
+    showNotification(message, type) {
+      const n = document.createElement('div');
+      n.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+      n.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+      document.body.appendChild(n);
+      setTimeout(() => { if (n.parentElement) n.remove(); }, 3200);
+    }
+  }
+
+  let buttonConstructor;
+  document.addEventListener('DOMContentLoaded', () => {
+    buttonConstructor = new ButtonConstructor();
+    window.buttonConstructor = buttonConstructor;
+  });
+</script>
+{% endblock %}
