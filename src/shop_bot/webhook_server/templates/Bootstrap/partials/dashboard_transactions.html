@@ -1,0 +1,28 @@
+{% for t in transactions %}
+<tr>
+    <td>
+        <div class="d-flex align-items-center">
+            <div class="avatar avatar-sm bg-primary-lt me-2">
+                <i class="bi bi-person"></i>
+            </div>
+            <span class="user-id">{{ t.user_id }}</span>
+        </div>
+    </td>
+    <td class="text-center">
+        <span class="badge bg-secondary">{{ t.plan or '—' }}</span>
+    </td>
+    <td>
+        <span class="fw-semibold text-success">{{ t.amount }}₽</span>
+    </td>
+    <td>
+        <span class="text-muted small">{{ t.created_at }}</span>
+    </td>
+</tr>
+{% else %}
+<tr>
+    <td colspan="4" class="text-center p-4">
+        <i class="bi bi-inbox fs-1 text-muted mb-2"></i>
+        <p class="text-muted mb-0">Транзакций не найдено.</p>
+    </td>
+</tr>
+{% endfor %}
