@@ -193,6 +193,25 @@ def create_webhook_app(bot_controller_instance):
             # Fallback to default template if theme fails
             return render_template(f"Default/{template_name}", **context)
 
+    def get_available_panel_templates():
+        templates_root = os.path.join(app_dir, 'templates')
+        available = []
+        try:
+            for name in sorted(os.listdir(templates_root)):
+                if name.startswith('.'):
+                    continue
+                full_path = os.path.join(templates_root, name)
+                if not os.path.isdir(full_path):
+                    continue
+                base_file = os.path.join(full_path, 'base.html')
+                if os.path.isfile(base_file):
+                    available.append(name)
+        except Exception as e:
+            logger.warning(f"Не удалось получить список шаблонов панели: {e}")
+        if not available:
+            available = ['Default']
+        return available
+
     @flask_app.context_processor
     def inject_current_year():
         # Добавляем csrf_token в шаблоны для meta и скрытых полей
@@ -1321,6 +1340,7 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/settings', methods=['GET', 'POST'])
     @login_required
     def settings_page():
+        panel_templates = get_available_panel_templates()
         if request.method == 'POST':
             # Смена пароля панели (если поле не пустое)
             if 'panel_password' in request.form and request.form.get('panel_password'):
@@ -1333,9 +1353,16 @@ def create_webhook_app(bot_controller_instance):
                 value = values[-1] if values else 'false'
                 update_setting(checkbox_key, value)
 
+            panel_template_value = (request.form.get('panel_template') or '').strip()
+            if panel_template_value:
+                if panel_template_value in panel_templates:
+                    update_setting('panel_template', panel_template_value)
+                else:
+                    update_setting('panel_template', 'Default')
+
             # Обновление остальных настроек из ALL_SETTINGS_KEYS (кроме panel_password и чекбоксов)
             for key in ALL_SETTINGS_KEYS:
-                if key in checkbox_keys or key == 'panel_password':
+                if key in checkbox_keys or key == 'panel_password' or key == 'panel_template':
                     continue
                 if key in request.form:
                     update_setting(key, request.form.get(key))
@@ -1374,7 +1401,7 @@ def create_webhook_app(bot_controller_instance):
             backups = []
 
         common_data = get_common_template_data()
-        return render_template_with_theme('settings.html', settings=current_settings, hosts=hosts, backups=backups, **common_data)
+        return render_template_with_theme('settings.html', settings=current_settings, hosts=hosts, backups=backups, panel_templates=panel_templates, **common_data)
 
     # --- DB Backup/Restore ---
     @flask_app.route('/admin/db/backup', methods=['POST'])

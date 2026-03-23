@@ -132,8 +132,9 @@
                     <div class="col-md-6">
                       <label class="form-label" for="panel_template">Шаблон админ-панели</label>
                       <select class="form-select" id="panel_template" name="panel_template">
-                        <option value="Default" {{ 'selected' if settings.panel_template == 'Default' else '' }}>Default (Стандартный)</option>
-                        <option value="Bootstrap" {{ 'selected' if settings.panel_template == 'Bootstrap' else '' }}>Bootstrap (Чистый)</option>
+                        {% for tmpl in panel_templates %}
+                          <option value="{{ tmpl }}" {{ 'selected' if settings.panel_template == tmpl else '' }}>{{ tmpl }}</option>
+                        {% endfor %}
                       </select>
                     </div>
                   </div>
