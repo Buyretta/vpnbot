@@ -43,13 +43,13 @@
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                                     <input type="hidden" name="method" value="both" />
                                     <button type="submit" class="btn btn-primary btn-sm">
-                                        <i class="bi bi-lightning me-1"></i>Тест
+                                        <i class="bi bi-lightning me-1"></i>
                                     </button>
                                 </form>
                                 <form id="st-run-all-form" action="{{ url_for('run_all_speedtests_route') }}" method="post" class="m-0">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                                     <button type="submit" class="btn btn-outline-secondary btn-sm">
-                                        <i class="bi bi-arrow-repeat me-1"></i>Все
+                                        <i class="bi bi-arrow-repeat me-1"></i>
                                     </button>
                                 </form>
                             </div>
