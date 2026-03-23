@@ -1720,7 +1720,17 @@ def get_user_router() -> Router:
             user_id = callback.from_user.id
             one_click_url = _build_one_click_url(app=app, key_id=key_id, user_id=user_id)
             if not one_click_url:
-                await callback.message.edit_text("❌ Не настроен домен или секрет для one-click ссылок. Укажите настройку 'domain' и переменную окружения SHOPBOT_DEEPLINK_SECRET.")
+                await callback.message.edit_text(
+                    "❌ One-click подключение пока недоступно.\n\n"
+                    "🔧 **Что нужно сделать:**\n"
+                    "1. Откройте веб-панель администратора в браузере\n"
+                    "2. Панель автоматически сохранит домен в настройках\n"
+                    "3. После этого one-click ссылки заработают\n\n"
+                    "📝 **Альтернативный вариант:**\n"
+                    "В админке → Настройки → укажите домен вручную в поле 'domain'\n\n"
+                    "💡 *После настройки домена все ссылки будут работать через HTTPS, "
+                    "что безопасно и совместимо с Telegram.*"
+                )
                 return
 
             app_names = {
@@ -1739,7 +1749,11 @@ def get_user_router() -> Router:
 
             await callback.message.edit_text(
                 f"🔗 <b>{app_name}</b>\n\n"
-                f"Нажмите кнопку ниже — откроется браузер и сразу предложит открыть приложение.",
+                f"📱 Нажмите кнопку ниже — откроется браузер и автоматически предложит открыть приложение.\n\n"
+                f"🔄 Если Happ не открывается:\n"
+                f"• Попробуйте альтернативную ссылку на странице\n"
+                f"• Убедитесь что приложение установлено\n"
+                f"• Для Happ Desktop используйте vless:// ссылку",
                 reply_markup=builder.as_markup(),
                 disable_web_page_preview=True,
             )

@@ -122,6 +122,42 @@ def create_webhook_app(bot_controller_instance):
     csrf = CSRFProtect()
     csrf.init_app(flask_app)
 
+    def _detect_public_base_url() -> str | None:
+        """Detect external base URL of this panel.
+        Supports reverse proxies via X-Forwarded-Proto/Host.
+        """
+        try:
+            xf_proto = (request.headers.get('X-Forwarded-Proto') or '').split(',')[0].strip()
+            xf_host = (request.headers.get('X-Forwarded-Host') or '').split(',')[0].strip()
+            proto = xf_proto or request.scheme
+            host = xf_host or request.host
+            if not proto or not host:
+                return None
+            if proto not in ('http', 'https'):
+                proto = 'https'
+            return f"{proto}://{host}".rstrip('/')
+        except Exception:
+            return None
+
+    @flask_app.before_request
+    def _auto_persist_domain_setting():
+        """Persist settings.domain automatically from current request if missing.
+        This enables bot to build absolute one-click URLs without manual configuration.
+        """
+        try:
+            current = (get_setting('domain') or '').strip()
+        except Exception:
+            current = ''
+        if current:
+            return
+        base = _detect_public_base_url()
+        if not base:
+            return
+        try:
+            update_setting('domain', base)
+        except Exception as e:
+            logger.debug(f"Failed to auto-set domain: {e}")
+
     def _oneclick_secret() -> str:
         env_val = (os.getenv('SHOPBOT_DEEPLINK_SECRET') or '').strip()
         if env_val:
@@ -207,8 +243,13 @@ def create_webhook_app(bot_controller_instance):
             deeplink = f"v2rayng://install-config/?url={encoded}"
         elif app == 'v2box':
             deeplink = f"v2box://install-config/?url={encoded}"
-        elif app == 'happ' or app == 'happ_desktop':
-            # Happ умеет импортировать vless:// из URL/clipboard; на iOS/Android может быть зарегистрирован обработчик vless://
+        elif app == 'happ':
+            # Happ mobile поддерживает happ:// схему для прямого открытия
+            # Пробуем happ://, если не сработает - fallback к vless://
+            happ_link = connection_string.replace('vless://', 'happ://')
+            deeplink = happ_link
+        elif app == 'happ_desktop':
+            # Happ Desktop лучше работает с vless:// ссылкой
             deeplink = connection_string
         elif app == 'v2rayn':
             # Desktop: often no URL scheme; fallback to plain vless which user can copy
@@ -217,6 +258,9 @@ def create_webhook_app(bot_controller_instance):
             deeplink = connection_string
 
         # Return HTML with auto-redirect + manual link
+        # Для Happ добавляем fallback на vless:// если happ:// не сработает
+        fallback_link = connection_string if app == 'happ' else deeplink
+        
         html = f"""<!doctype html>
 <html lang=\"ru\"><head>
 <meta charset=\"utf-8\" />
@@ -226,7 +270,14 @@ def create_webhook_app(bot_controller_instance):
 <body style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; padding:24px;\">
   <h3 style=\"margin:0 0 12px 0;\">Открываю приложение…</h3>
   <p style=\"margin:0 0 16px 0;\">Если ничего не произошло, нажмите кнопку ниже.</p>
-  <p><a id=\"open\" href=\"{html_escape.escape(deeplink)}\" style=\"display:inline-block;padding:12px 16px;background:#206bc4;color:#fff;border-radius:10px;text-decoration:none;\">Открыть приложение</a></p>
+  <p><a id=\"open\" href=\"{html_escape.escape(deeplink)}\" style=\"display:inline-block;padding:12px 16px;background:#206bc4;color:#fff;border-radius:10px;text-decoration:none;\">Открыть приложение</a></p>"""
+        
+        # Добавляем fallback кнопку для Happ
+        if app == 'happ':
+            html += f"""
+  <p style=\"margin-top:12px;\"><a href=\"{html_escape.escape(fallback_link)}\" style=\"display:inline-block;padding:8px 12px;background:#6b7280;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;\">Альтернативная ссылка</a></p>"""
+            
+        html += f"""
   <p style=\"margin-top:16px;color:#6b7280;font-size:13px;\">Если браузер спросит подтверждение — согласитесь.</p>
   <script>
     (function(){{
