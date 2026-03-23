@@ -1,81 +1,159 @@
 {% extends 'Bootstrap/base.html' %}
 {% block title %}Тикет #{{ ticket.ticket_id }}{% endblock %}
 {% block content %}
-<div class="container-fluid d-flex flex-column" style="min-height: calc(100vh - 140px);">
-  <div class="card flex-grow-1 d-flex flex-column">
-    <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
-      <div class="d-flex align-items-center gap-2">
-        <a href="{{ url_for('support_list_page') }}" class="btn btn-sm btn-outline-secondary">
+<style>
+  body[data-page="support_ticket_page"] nav.navbar,
+  body[data-page="support_ticket_page"] aside,
+  body[data-page="support_ticket_page"] main > .mb-3 {
+    display: none !important;
+  }
+  body[data-page="support_ticket_page"] .container-fluid > .row > main {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  body[data-page="support_ticket_page"] {
+    overflow: hidden;
+  }
+  .ticket-fullscreen {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+  }
+  .ticket-topbar {
+    border-bottom: 1px solid var(--bs-border-color);
+    background: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  .ticket-messages {
+    flex: 1 1 auto;
+    overflow: auto;
+    padding: 0.75rem;
+    background: #f8f9fa;
+  }
+  .ticket-composer {
+    border-top: 1px solid var(--bs-border-color);
+    background: #fff;
+    padding: 0.5rem;
+  }
+  .message-bubble {
+    max-width: min(80%, 720px);
+    border-radius: 12px;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--bs-border-color);
+  }
+  .message-bubble.user {
+    background: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: #fff;
+  }
+  .message-bubble.admin {
+    background: #fff;
+    color: var(--bs-body-color);
+  }
+  .ticket-input {
+    resize: none;
+    min-height: 42px;
+    max-height: 140px;
+  }
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+  }
+  @media (max-width: 767.98px) {
+    .ticket-messages {
+      padding: 0.5rem;
+    }
+    .message-bubble {
+      max-width: 90%;
+    }
+  }
+</style>
+
+<div class="ticket-fullscreen">
+  <div class="ticket-topbar px-2 py-2">
+    <div class="d-flex align-items-center justify-content-between gap-2">
+      <div class="d-flex align-items-center gap-2 min-w-0">
+        <a href="{{ url_for('support_list_page') }}" class="btn btn-outline-secondary icon-btn" title="Назад">
           <i class="bi bi-arrow-left"></i>
         </a>
-        <div>
-          <div class="fw-semibold">Тикет #{{ ticket.ticket_id }}</div>
-          <div class="small text-muted">Пользователь: {{ ticket.user_id }}{% if ticket.subject %} • {{ ticket.subject }}{% endif %}</div>
+        <div class="text-truncate">
+          <div class="fw-semibold text-truncate">Тикет #{{ ticket.ticket_id }}</div>
+          <div class="small text-muted text-truncate">{{ ticket.user_id }}{% if ticket.subject %} • {{ ticket.subject }}{% endif %}</div>
         </div>
         <span id="ticket-status-badge" class="badge {% if ticket.status == 'open' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
           {% if ticket.status == 'open' %}Открыт{% else %}Закрыт{% endif %}
         </span>
       </div>
-      <div class="d-flex align-items-center gap-2">
-        <button id="ticket-refresh" type="button" class="btn btn-sm btn-outline-secondary">
+      <div class="d-flex align-items-center gap-1">
+        <button id="ticket-refresh" type="button" class="btn btn-outline-secondary icon-btn" title="Обновить">
           <i class="bi bi-arrow-clockwise"></i>
         </button>
         {% if ticket.status == 'open' %}
-          <button type="submit" form="ticket-action-form" name="action" value="close" class="btn btn-sm btn-outline-warning">
-            <i class="bi bi-lock me-1"></i>Закрыть
+          <button type="submit" form="ticket-action-form" name="action" value="close" class="btn btn-outline-warning icon-btn" title="Закрыть тикет">
+            <i class="bi bi-lock"></i>
           </button>
         {% else %}
-          <button type="submit" form="ticket-action-form" name="action" value="open" class="btn btn-sm btn-outline-success">
-            <i class="bi bi-unlock me-1"></i>Открыть
+          <button type="submit" form="ticket-action-form" name="action" value="open" class="btn btn-outline-success icon-btn" title="Открыть тикет">
+            <i class="bi bi-unlock"></i>
           </button>
         {% endif %}
         <form method="post" action="{{ url_for('delete_support_ticket_route', ticket_id=ticket.ticket_id) }}" onsubmit="return confirm('Удалить тикет #{{ ticket.ticket_id }}?');">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-sm btn-outline-danger">
+          <button type="submit" class="btn btn-outline-danger icon-btn" title="Удалить">
             <i class="bi bi-trash"></i>
           </button>
         </form>
       </div>
     </div>
+  </div>
 
-    <div id="ticket-messages" class="card-body overflow-auto d-flex flex-column gap-2" style="min-height: 360px; max-height: calc(100vh - 300px);">
-      {% for m in messages %}
-        <div class="d-flex {% if m.sender == 'admin' %}justify-content-start{% else %}justify-content-end{% endif %}">
-          <div class="rounded border px-3 py-2 {% if m.sender == 'admin' %}bg-light{% else %}bg-primary text-white border-primary{% endif %}" style="max-width: 75%;">
-            <div class="small" style="white-space: pre-wrap;">{{ m.content | e }}</div>
-            <div class="small opacity-75 mt-1">{{ m.created_at }}</div>
-          </div>
+  <div id="ticket-messages" class="ticket-messages d-flex flex-column gap-2">
+    {% for m in messages %}
+      <div class="d-flex {% if m.sender == 'admin' %}justify-content-start{% else %}justify-content-end{% endif %}">
+        <div class="message-bubble {% if m.sender == 'admin' %}admin{% else %}user{% endif %}">
+          <div class="small" style="white-space: pre-wrap;">{{ m.content | e }}</div>
+          <div class="small opacity-75 mt-1">{{ m.created_at }}</div>
+        </div>
+      </div>
+    {% else %}
+      <div class="h-100 d-flex align-items-center justify-content-center text-muted">
+        Сообщений пока нет
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="ticket-composer">
+    <form id="ticket-action-form" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if ticket.status == 'open' %}
+        <div class="input-group">
+          <textarea id="reply-text" name="message" rows="1" maxlength="4000" class="form-control ticket-input" placeholder="Введите сообщение..."></textarea>
+          <button id="reply-submit" type="submit" name="action" value="reply" class="btn btn-primary icon-btn">
+            <i class="bi bi-send"></i>
+          </button>
+        </div>
+        <div class="d-flex justify-content-end mt-1">
+          <div id="reply-counter" class="small text-muted">0/4000</div>
         </div>
       {% else %}
-        <div class="h-100 d-flex align-items-center justify-content-center text-muted">
-          Сообщений пока нет
+        <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+          <span class="small text-muted">Тикет закрыт. Откройте тикет для отправки сообщений.</span>
+          <button type="submit" name="action" value="open" class="btn btn-success btn-sm">
+            <i class="bi bi-unlock me-1"></i>Открыть
+          </button>
         </div>
-      {% endfor %}
-    </div>
-
-    <div class="card-footer">
-      <form id="ticket-action-form" method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        {% if ticket.status == 'open' %}
-          <div class="d-flex flex-column gap-2">
-            <textarea id="reply-text" name="message" rows="2" maxlength="4000" class="form-control" placeholder="Введите сообщение..."></textarea>
-            <div class="d-flex align-items-center justify-content-between">
-              <div id="reply-counter" class="small text-muted">0/4000</div>
-              <button id="reply-submit" type="submit" name="action" value="reply" class="btn btn-primary">
-                <i class="bi bi-send me-1"></i>Отправить
-              </button>
-            </div>
-          </div>
-        {% else %}
-          <div class="alert alert-secondary mb-0 d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <span>Тикет закрыт. Откройте тикет для отправки сообщений.</span>
-            <button type="submit" name="action" value="open" class="btn btn-sm btn-success">
-              <i class="bi bi-unlock me-1"></i>Открыть тикет
-            </button>
-          </div>
-        {% endif %}
-      </form>
-    </div>
+      {% endif %}
+    </form>
   </div>
 </div>
 
@@ -106,7 +184,7 @@
       messagesRoot.innerHTML = items.map((m) => {
         const isAdmin = m.sender === 'admin';
         const alignClass = isAdmin ? 'justify-content-start' : 'justify-content-end';
-        const bubbleClass = isAdmin ? 'rounded border px-3 py-2 bg-light' : 'rounded border px-3 py-2 bg-primary text-white border-primary';
+        const bubbleClass = isAdmin ? 'message-bubble admin' : 'message-bubble user';
         const safeText = String(m.content || '')
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
@@ -114,7 +192,7 @@
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#39;')
           .replace(/\n/g, '<br>');
-        return `<div class="d-flex ${alignClass}"><div class="${bubbleClass}" style="max-width: 75%;"><div class="small">${safeText}</div><div class="small opacity-75 mt-1">${m.created_at || ''}</div></div></div>`;
+        return `<div class="d-flex ${alignClass}"><div class="${bubbleClass}"><div class="small">${safeText}</div><div class="small opacity-75 mt-1">${m.created_at || ''}</div></div></div>`;
       }).join('');
     }
 
@@ -139,7 +217,6 @@
         updateStatusBadge(data.status);
         if (data.status && data.status !== initialStatus) {
           window.location.reload();
-          return;
         }
       } catch (e) {
       }
@@ -153,14 +230,12 @@
       textarea.addEventListener('input', () => {
         counter.textContent = `${textarea.value.length}/4000`;
         textarea.style.height = 'auto';
-        textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 140)}px`;
       });
       textarea.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
-          if (textarea.value.trim() && form) {
-            if (submitBtn) submitBtn.click();
-          }
+          if (textarea.value.trim() && submitBtn) submitBtn.click();
         }
       });
       textarea.focus();
