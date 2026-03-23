@@ -1746,6 +1746,8 @@ def create_webhook_app(bot_controller_instance):
         if not ticket:
             flash('Тикет не найден.', 'danger')
             return redirect(url_for('support_list_page'))
+        if request.method == 'GET':
+            return redirect(url_for('support_list_page', open_ticket=ticket_id))
 
         if request.method == 'POST':
             message = (request.form.get('message') or '').strip()
