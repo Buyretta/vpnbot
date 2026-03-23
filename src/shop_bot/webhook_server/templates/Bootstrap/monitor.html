@@ -1,0 +1,398 @@
+{% extends "Bootstrap/base.html" %}
+{% block title %}Мониторинг ресурсов{% endblock %}
+{% block content %}
+<div class="container-fluid">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h2 class="h4 mb-0">Мониторинг системы</h2>
+      <div class="text-muted small">Состояние панели и серверов в реальном времени</div>
+    </div>
+    <div class="btn-group btn-group-sm" role="group">
+      <button type="button" class="btn btn-outline-primary" id="refresh-all"><i class="bi bi-arrow-clockwise me-1"></i>Обновить все</button>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+      <div class="card h-100">
+        <div class="card-body text-center">
+          <div class="small text-muted mb-1">CPU</div>
+          <div class="h5 mb-1" id="cpu-stat">—</div>
+          <div class="small text-muted" id="cpu-trend"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card h-100">
+        <div class="card-body text-center">
+          <div class="small text-muted mb-1">Память</div>
+          <div class="h5 mb-1" id="memory-stat">—</div>
+          <div class="small text-muted" id="memory-trend"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card h-100">
+        <div class="card-body text-center">
+          <div class="small text-muted mb-1">Диск</div>
+          <div class="h5 mb-1" id="disk-stat">—</div>
+          <div class="small text-muted" id="disk-trend"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card h-100">
+        <div class="card-body text-center">
+          <div class="small text-muted mb-1">Сеть</div>
+          <div class="h5 mb-1" id="network-stat">—</div>
+          <div class="small text-muted" id="network-trend"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-xl-8">
+      <div class="card h-100">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <div class="fw-semibold">График производительности</div>
+          <div class="btn-group btn-group-sm" role="group">
+            <input type="radio" class="btn-check" name="chart-period" id="period-1h" value="1" checked>
+            <label class="btn btn-outline-secondary" for="period-1h">1ч</label>
+            <input type="radio" class="btn-check" name="chart-period" id="period-6h" value="6">
+            <label class="btn btn-outline-secondary" for="period-6h">6ч</label>
+            <input type="radio" class="btn-check" name="chart-period" id="period-24h" value="24">
+            <label class="btn btn-outline-secondary" for="period-24h">24ч</label>
+          </div>
+        </div>
+        <div class="card-body">
+          <canvas id="main-chart" height="290"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <div class="fw-semibold" id="local-panel-header">Текущий сервер</div>
+        </div>
+        <div class="card-body">
+          <div id="local-metrics" class="small">Загрузка…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <div class="fw-semibold">Серверы</div>
+          <span class="badge text-bg-primary" id="hosts-count">{{ hosts|length }}</span>
+        </div>
+        <div class="card-body">
+          {% if hosts %}
+            <div class="row g-2" id="hosts-list">
+              {% for h in hosts %}
+              <div class="col-12 col-lg-6">
+                <div class="border rounded p-2 h-100" data-host="{{ h.host_name }}">
+                  <div class="d-flex align-items-start justify-content-between gap-2">
+                    <div class="min-w-0">
+                      <div class="fw-semibold text-truncate">{{ h.host_name }}</div>
+                      <div class="small text-muted text-truncate">{{ h.host_url or 'URL не указан' }}</div>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                      <button class="btn btn-outline-secondary btn-host-refresh" data-host="{{ h.host_name }}">
+                        <i class="bi bi-arrow-clockwise"></i>
+                      </button>
+                      <button class="btn btn-outline-primary btn-host-select" data-host="{{ h.host_name }}">
+                        <i class="bi bi-graph-up"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="small mt-2 host-metrics" id="host-{{ loop.index }}">Загрузка…</div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-muted">Хосты не добавлены</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    let mainChart = null;
+    let currentPeriod = 1;
+    let activeSource = { scope: 'local', name: 'panel', title: 'Текущий сервер' };
+    let lastNet = null;
+    let lastNetTs = null;
+    let autoRefreshId = null;
+
+    function fmtPct(v) {
+      if (v === null || v === undefined || Number.isNaN(Number(v))) return '—';
+      return `${Number(v).toFixed(1)}%`;
+    }
+
+    function fmtBytes(n) {
+      if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
+      let x = Number(n);
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let i = 0;
+      while (x >= 1024 && i < units.length - 1) {
+        x /= 1024;
+        i++;
+      }
+      return `${x.toFixed(1)} ${units[i]}`;
+    }
+
+    function secsToDHMS(s) {
+      if (s === null || s === undefined || Number.isNaN(Number(s))) return '—';
+      let x = Number(s);
+      const d = Math.floor(x / 86400); x %= 86400;
+      const h = Math.floor(x / 3600); x %= 3600;
+      const m = Math.floor(x / 60);
+      const sec = Math.floor(x % 60);
+      const parts = [];
+      if (d) parts.push(`${d}д`);
+      if (h) parts.push(`${h}ч`);
+      if (m) parts.push(`${m}м`);
+      if (!parts.length) parts.push(`${sec}с`);
+      return parts.join(' ');
+    }
+
+    function statusClass(v) {
+      if (v === null || v === undefined || Number.isNaN(Number(v))) return 'text-muted';
+      const x = Number(v);
+      if (x >= 90) return 'text-danger';
+      if (x >= 70) return 'text-warning';
+      return 'text-success';
+    }
+
+    async function fetchJSON(url) {
+      try {
+        const r = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+        return await r.json();
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    }
+
+    function calcNetworkSpeed(netSent, netRecv) {
+      const now = Date.now();
+      if (lastNet === null || lastNetTs === null) {
+        lastNet = { sent: netSent || 0, recv: netRecv || 0 };
+        lastNetTs = now;
+        return null;
+      }
+      const dt = (now - lastNetTs) / 1000;
+      if (dt <= 0) return null;
+      const sent = ((netSent || 0) - (lastNet.sent || 0)) / dt;
+      const recv = ((netRecv || 0) - (lastNet.recv || 0)) / dt;
+      lastNet = { sent: netSent || 0, recv: netRecv || 0 };
+      lastNetTs = now;
+      return { sent: Math.max(0, sent), recv: Math.max(0, recv), total: Math.max(0, sent + recv) };
+    }
+
+    function setSummary(data) {
+      const cpu = data?.cpu_percent;
+      const mem = data?.mem_percent;
+      const disk = data?.disk_percent;
+      const netSpeed = calcNetworkSpeed(data?.network_sent, data?.network_recv);
+
+      const cpuEl = document.getElementById('cpu-stat');
+      const memEl = document.getElementById('memory-stat');
+      const diskEl = document.getElementById('disk-stat');
+      const netEl = document.getElementById('network-stat');
+      const cpuTrend = document.getElementById('cpu-trend');
+      const memTrend = document.getElementById('memory-trend');
+      const diskTrend = document.getElementById('disk-trend');
+      const netTrend = document.getElementById('network-trend');
+
+      if (cpuEl) cpuEl.innerHTML = `<span class="${statusClass(cpu)}">${fmtPct(cpu)}</span>`;
+      if (memEl) memEl.innerHTML = `<span class="${statusClass(mem)}">${fmtPct(mem)}</span>`;
+      if (diskEl) diskEl.innerHTML = `<span class="${statusClass(disk)}">${fmtPct(disk)}</span>`;
+      if (netEl) netEl.innerHTML = `<span class="text-info">${netSpeed ? fmtBytes(netSpeed.total) + '/с' : '—'}</span>`;
+      if (cpuTrend) cpuTrend.textContent = `${data?.cpu_count || '—'} ядер`;
+      if (memTrend) memTrend.textContent = `${fmtBytes(data?.mem_used)} / ${fmtBytes(data?.mem_total)}`;
+      if (diskTrend) diskTrend.textContent = `${fmtBytes(data?.disk_used)} / ${fmtBytes(data?.disk_total)}`;
+      if (netTrend) netTrend.textContent = netSpeed ? `↑ ${fmtBytes(netSpeed.sent)}/с • ↓ ${fmtBytes(netSpeed.recv)}/с` : 'ожидание данных';
+    }
+
+    function renderLocalPanel(data) {
+      const header = document.getElementById('local-panel-header');
+      const body = document.getElementById('local-metrics');
+      if (header) header.textContent = activeSource.title;
+      if (!body) return;
+      if (!data || data.ok === false) {
+        body.innerHTML = `<div class="text-danger">${data?.error || 'Ошибка загрузки'}</div>`;
+        return;
+      }
+      body.innerHTML = `
+        <div class="d-flex justify-content-between"><span class="text-muted">CPU</span><span class="${statusClass(data.cpu_percent)}">${fmtPct(data.cpu_percent)}</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">RAM</span><span class="${statusClass(data.mem_percent)}">${fmtPct(data.mem_percent)}</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Disk</span><span class="${statusClass(data.disk_percent)}">${fmtPct(data.disk_percent)}</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Uptime</span><span>${secsToDHMS(data.uptime_seconds)}</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Load 1m</span><span>${data.loadavg?.['1m'] != null ? Number(data.loadavg['1m']).toFixed(2) : '—'}</span></div>
+      `;
+    }
+
+    function renderHostMetric(hostName, data, index) {
+      const el = document.getElementById(`host-${index}`);
+      if (!el) return;
+      if (!data || data.ok === false) {
+        el.innerHTML = `<span class="text-danger">${data?.error || 'Ошибка подключения'}</span>`;
+        return;
+      }
+      el.innerHTML = `
+        <div class="d-flex justify-content-between"><span class="text-muted">CPU</span><span class="${statusClass(data.cpu_percent)}">${fmtPct(data.cpu_percent)}</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">RAM</span><span class="${statusClass(data.mem_percent)}">${fmtPct(data.mem_percent)}</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Disk</span><span class="${statusClass(data.disk_percent)}">${fmtPct(data.disk_percent)}</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Uptime</span><span>${secsToDHMS(data.uptime_seconds)}</span></div>
+      `;
+    }
+
+    function ensureChart() {
+      const canvas = document.getElementById('main-chart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      mainChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'CPU %', data: [], borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,.1)', tension: .25, fill: true, pointRadius: 0 },
+            { label: 'RAM %', data: [], borderColor: '#198754', backgroundColor: 'rgba(25,135,84,.1)', tension: .25, fill: true, pointRadius: 0 },
+            { label: 'Disk %', data: [], borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,.1)', tension: .25, fill: true, pointRadius: 0 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom' } },
+          scales: { y: { suggestedMin: 0, suggestedMax: 100 } }
+        }
+      });
+    }
+
+    async function refreshChart() {
+      if (!mainChart) return;
+      const scope = activeSource.scope;
+      const objectName = encodeURIComponent(activeSource.name);
+      const series = await fetchJSON(`/monitor/metrics/${scope}/${objectName}.json?since_hours=${currentPeriod}&limit=800`);
+      const items = Array.isArray(series?.items) ? series.items : [];
+      if (!items.length) {
+        mainChart.data.labels = ['Нет данных'];
+        mainChart.data.datasets[0].data = [0];
+        mainChart.data.datasets[1].data = [0];
+        mainChart.data.datasets[2].data = [0];
+        mainChart.update('none');
+        return;
+      }
+      const sorted = items.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+      mainChart.data.labels = sorted.map((x) => {
+        try {
+          return new Date(x.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch {
+          return x.created_at || '';
+        }
+      });
+      mainChart.data.datasets[0].data = sorted.map((x) => x.cpu_percent ?? null);
+      mainChart.data.datasets[1].data = sorted.map((x) => x.mem_percent ?? null);
+      mainChart.data.datasets[2].data = sorted.map((x) => x.disk_percent ?? null);
+      mainChart.update('none');
+    }
+
+    async function refreshLocal() {
+      const data = await fetchJSON(`{{ url_for('monitor_local_json') }}`);
+      renderLocalPanel(data);
+      if (activeSource.scope === 'local') {
+        setSummary(data);
+      }
+    }
+
+    async function refreshHosts() {
+      const data = await fetchJSON(`{{ url_for('monitor_hosts_json') }}`);
+      const items = Array.isArray(data?.items) ? data.items : [];
+      document.getElementById('hosts-count').textContent = String(items.length);
+      const domHosts = Array.from(document.querySelectorAll('[data-host]'));
+      domHosts.forEach((node, idx) => {
+        const hostName = node.getAttribute('data-host');
+        const item = items.find((x) => x.host_name === hostName) || { ok: false, error: 'Нет данных' };
+        renderHostMetric(hostName, item, idx + 1);
+      });
+      if (activeSource.scope === 'host') {
+        const current = items.find((x) => x.host_name === activeSource.name);
+        if (current) {
+          renderLocalPanel(current);
+          setSummary(current);
+        }
+      }
+    }
+
+    async function refreshAll() {
+      await Promise.all([refreshLocal(), refreshHosts()]);
+      await refreshChart();
+    }
+
+    function bind() {
+      document.getElementById('refresh-all')?.addEventListener('click', refreshAll);
+      document.querySelectorAll('input[name="chart-period"]').forEach((radio) => {
+        radio.addEventListener('change', () => {
+          currentPeriod = Number(radio.value || 1);
+          refreshChart();
+        });
+      });
+      document.querySelectorAll('.btn-host-select').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const host = btn.getAttribute('data-host');
+          if (!host) return;
+          activeSource = { scope: 'host', name: host, title: `Сервер: ${host}` };
+          const data = await fetchJSON(`/monitor/host/${encodeURIComponent(host)}.json`);
+          renderLocalPanel(data);
+          setSummary(data);
+          refreshChart();
+        });
+      });
+      document.querySelectorAll('.btn-host-refresh').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const host = btn.getAttribute('data-host');
+          if (!host) return;
+          const data = await fetchJSON(`/monitor/host/${encodeURIComponent(host)}.json`);
+          const hostNode = btn.closest('[data-host]');
+          if (!hostNode) return;
+          const nodes = Array.from(document.querySelectorAll('[data-host]'));
+          const idx = nodes.indexOf(hostNode) + 1;
+          renderHostMetric(host, data, idx);
+          if (activeSource.scope === 'host' && activeSource.name === host) {
+            renderLocalPanel(data);
+            setSummary(data);
+            refreshChart();
+          }
+        });
+      });
+    }
+
+    function startAutoRefresh() {
+      if (autoRefreshId) clearInterval(autoRefreshId);
+      autoRefreshId = setInterval(refreshAll, 10000);
+      window.addEventListener('beforeunload', () => {
+        if (autoRefreshId) clearInterval(autoRefreshId);
+      });
+    }
+
+    async function init() {
+      ensureChart();
+      bind();
+      await refreshAll();
+      startAutoRefresh();
+    }
+
+    init();
+  })();
+</script>
+{% endblock %}
