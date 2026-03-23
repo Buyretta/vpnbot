@@ -57,7 +57,7 @@
     </div>
   </div>
 
-  <div class="card flex-grow-1 table-container" style="min-height: calc(100vh - 280px);">
+  <div class="card flex-grow-1 table-container users-table-card">
     <div class="table-wrapper">
       <table id="users-table" class="table table-sm table-hover align-middle mb-0">
         <thead>
@@ -128,7 +128,7 @@
 </div>
 
 <script>
-  (function(){
+  document.addEventListener('DOMContentLoaded', function () {
     const input = document.getElementById('users-search');
     const perPageSel = document.getElementById('users-per-page');
     const statusSel = document.getElementById('users-status');
@@ -147,7 +147,7 @@
     const selectAllCb = document.getElementById('users-select-all');
     const userOffcanvasEl = document.getElementById('userManageOffcanvas');
     const userManageContent = document.getElementById('user-manage-content');
-    const userOffcanvas = userOffcanvasEl ? bootstrap.Offcanvas.getOrCreateInstance(userOffcanvasEl) : null;
+    const userOffcanvas = (userOffcanvasEl && window.bootstrap) ? window.bootstrap.Offcanvas.getOrCreateInstance(userOffcanvasEl) : null;
     if (!input || !perPageSel || !tbody || !table) return;
 
     function updateQuery(next) {
@@ -260,7 +260,9 @@
       bulkApplyBtn.disabled = true;
       try {
         const resp = await fetch(bulkForm.action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
-        const data = await resp.json();
+        const raw = await resp.text();
+        let data = null;
+        try { data = JSON.parse(raw); } catch (_) { throw new Error('server_returned_html'); }
         if (!data.ok) throw new Error(data.error || 'bulk_failed');
         window.location.reload();
       } catch (err) {
@@ -282,7 +284,9 @@
           credentials: 'same-origin',
           headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
         });
-        const data = await resp.json();
+        const raw = await resp.text();
+        let data = null;
+        try { data = JSON.parse(raw); } catch (_) { throw new Error('server_returned_html'); }
         if (!resp.ok || !data.ok) throw new Error(data.error || data.message || 'balance_failed');
         window.location.reload();
       } catch (err) {
@@ -304,6 +308,6 @@
       }
     });
     updateBulkState();
-  })();
+  });
 </script>
 {% endblock %}

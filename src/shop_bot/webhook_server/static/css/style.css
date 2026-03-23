@@ -524,11 +524,12 @@ body.layout-sidebar {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 400px;
+  min-height: 0;
 }
 
 .table-wrapper {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: auto;
   position: relative;
@@ -551,6 +552,30 @@ body.layout-sidebar {
 
 .table-hover tbody tr:hover {
   background-color: color-mix(in oklab, var(--primary-color) 4%, transparent);
+}
+
+.users-table-card { min-height: calc(100vh - 280px); }
+.support-table-card { min-height: calc(100vh - 220px); }
+.keys-table-card { min-height: calc(100vh - 350px); }
+
+@media (max-width: 768px) {
+  .users-table-card,
+  .support-table-card,
+  .keys-table-card {
+    min-height: 0;
+  }
+  .table-wrapper {
+    max-height: calc(100vh - 280px);
+  }
+  .table-wrapper .table {
+    font-size: 0.85rem;
+  }
+  .table-wrapper .table th,
+  .table-wrapper .table td,
+  .table-wrapper .table .text-nowrap {
+    white-space: normal !important;
+    word-break: break-word;
+  }
 }
 
 .pagination {

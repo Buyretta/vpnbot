@@ -19,7 +19,7 @@
     </div>
   </div>
 
-  <div class="card flex-grow-1 table-container" style="min-height: calc(100vh - 220px);">
+  <div class="card flex-grow-1 table-container support-table-card">
     <div class="table-wrapper">
       <table id="support-table" class="table table-hover align-middle mb-0">
         <thead>
@@ -157,7 +157,7 @@
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script>
-  (function(){
+  document.addEventListener('DOMContentLoaded', function () {
     const qInput = document.getElementById('support-q');
     const userIdInput = document.getElementById('support-user-id');
     const ticketIdInput = document.getElementById('support-ticket-id');
@@ -180,7 +180,7 @@
     const deleteBtn = document.getElementById('ticket-delete-btn');
     if (!table || !tbody || !offcanvasEl || !messagesEl || !chatForm || !chatInput) return;
 
-    const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl);
+    const offcanvas = window.bootstrap ? window.bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl) : null;
     const socket = window.io ? window.io({ transports: ['websocket', 'polling'] }) : null;
     let activeTicketId = null;
     let activeTicketStatus = 'open';
@@ -290,7 +290,7 @@
       renderMessages(data.messages || []);
       syncActionButtons();
       if (socket) socket.emit('support_join_ticket', { ticket_id: ticketId });
-      offcanvas.show();
+      offcanvas?.show();
       if (activeTicketStatus === 'open') {
         setTimeout(() => chatInput.focus(), 200);
       }
@@ -374,7 +374,7 @@
       if (!window.confirm(`Удалить тикет #${activeTicketId}?`)) return;
       try {
         await ticketAction('delete');
-        offcanvas.hide();
+        offcanvas?.hide();
         const row = tbody.querySelector(`.ticket-row[data-ticket-id="${activeTicketId}"]`);
         row?.remove();
       } catch (err) {
@@ -417,7 +417,7 @@
         const row = tbody.querySelector(`.ticket-row[data-ticket-id="${payload.ticket_id}"]`);
         row?.remove();
         if (Number(payload.ticket_id) === Number(activeTicketId)) {
-          offcanvas.hide();
+          offcanvas?.hide();
         }
       });
       socket.on('ticket_error', (payload) => {
@@ -457,6 +457,6 @@
         return;
       }
     });
-  })();
+  });
 </script>
 {% endblock %}
