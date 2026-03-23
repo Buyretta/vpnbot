@@ -513,6 +513,66 @@ body.layout-sidebar {
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary-color) 40%, transparent);
 }
 
+/* ===== Tables & Standardized Layout ===== */
+.table-responsive {
+  /* Allow dropdowns to overflow */
+  overflow: visible !important;
+}
+
+/* Container for standardized tables with fixed headers and internal scroll */
+.table-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 400px;
+}
+
+.table-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  position: relative;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Ensure sticky header works inside scrollable wrapper */
+.table-wrapper .table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background-color: var(--bg-surface);
+  box-shadow: inset 0 -1px 0 var(--border-color);
+}
+
+/* Make dropdowns pop out of scrollable containers */
+.table-wrapper .dropdown-menu {
+  position: fixed !important;
+}
+
+.table-hover tbody tr:hover {
+  background-color: color-mix(in oklab, var(--primary-color) 4%, transparent);
+}
+
+.pagination {
+  margin-bottom: 0;
+}
+
+.page-link {
+  background-color: var(--bg-surface);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.page-item.active .page-link {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.page-link:hover {
+  background-color: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color: var(--text-primary);
+}
+
 /* User suggest menu (positioned to body) */
 #user-suggest-menu.soft-select-menu {
   position: fixed !important;
@@ -540,6 +600,7 @@ body.layout-sidebar {
   border: 1px solid var(--border-color) !important;
   border-radius: 10px !important;
   box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+  z-index: 2000 !important;
 }
 .dropdown-item {
   color: var(--text-primary) !important;

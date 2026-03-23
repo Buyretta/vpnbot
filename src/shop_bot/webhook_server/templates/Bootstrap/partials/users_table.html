@@ -35,7 +35,7 @@
               data-uid="{{ user.telegram_id }}"
               data-username="{{ user.username or 'N/A' }}"
               data-balance="{{ '%.2f'|format(user.balance or 0) }}"
-              data-referrals='{{ user.referrals|tojson }}'
+              data-referrals='{{ user.referrals|tojson|forceescape }}'
               data-sign="+"
               title="Пополнить баланс">
         <i class="bi bi-plus-lg"></i>
@@ -49,7 +49,7 @@
         <i class="bi bi-key"></i>
       </button>
       <div class="dropdown">
-        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false">
           Ещё
         </button>
         <div class="dropdown-menu dropdown-menu-end">
@@ -60,7 +60,7 @@
                   data-uid="{{ user.telegram_id }}"
                   data-username="{{ user.username or 'N/A' }}"
                   data-balance="{{ '%.2f'|format(user.balance or 0) }}"
-                  data-referrals='{{ user.referrals|tojson }}'
+                  data-referrals='{{ user.referrals|tojson|forceescape }}'
                   data-sign="-">
             <i class="bi bi-dash-lg me-2 text-danger"></i>Списать баланс
           </button>

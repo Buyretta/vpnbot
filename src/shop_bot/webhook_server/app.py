@@ -484,11 +484,13 @@ def create_webhook_app(bot_controller_instance):
         status = (request.args.get('status') or 'all').strip().lower()
         keys_state = (request.args.get('keys_state') or 'all').strip().lower()
         try:
-            balance_min = request.args.get('balance_min', type=float)
+            balance_min_raw = request.args.get('balance_min')
+            balance_min = float(balance_min_raw) if balance_min_raw else None
         except Exception:
             balance_min = None
         try:
-            balance_max = request.args.get('balance_max', type=float)
+            balance_max_raw = request.args.get('balance_max')
+            balance_max = float(balance_max_raw) if balance_max_raw else None
         except Exception:
             balance_max = None
         tags_map = session.get('users_tags') or {}
@@ -571,11 +573,13 @@ def create_webhook_app(bot_controller_instance):
         status = (request.args.get('status') or 'all').strip().lower()
         keys_state = (request.args.get('keys_state') or 'all').strip().lower()
         try:
-            balance_min = request.args.get('balance_min', type=float)
+            balance_min_raw = request.args.get('balance_min')
+            balance_min = float(balance_min_raw) if balance_min_raw else None
         except Exception:
             balance_min = None
         try:
-            balance_max = request.args.get('balance_max', type=float)
+            balance_max_raw = request.args.get('balance_max')
+            balance_max = float(balance_max_raw) if balance_max_raw else None
         except Exception:
             balance_max = None
         tags_map = session.get('users_tags') or {}
@@ -757,6 +761,9 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/admin/keys')
     @login_required
     def admin_keys_page():
+        page = max(1, request.args.get('page', 1, type=int) or 1)
+        per_page = request.args.get('per_page', 20, type=int) or 20
+        per_page = max(10, min(200, per_page))
         q = (request.args.get('q') or '').strip()
         host_filter = (request.args.get('host_name') or '').strip()
         expiry_filter = (request.args.get('expiry') or 'all').strip().lower()
@@ -823,6 +830,13 @@ def create_webhook_app(bot_controller_instance):
                 if not exp_dt or (exp_dt - now).total_seconds() >= 0:
                     continue
             filtered_keys.append(kk)
+
+        filtered_keys.sort(key=lambda x: x.get('key_id', 0), reverse=True)
+        total = len(filtered_keys)
+        total_pages = max(1, ceil(total / per_page)) if total else 1
+        page = min(page, total_pages)
+        start = (page - 1) * per_page
+        keys_page_items = filtered_keys[start:start + per_page]
 
         hosts = []
         try:
@@ -837,7 +851,11 @@ def create_webhook_app(bot_controller_instance):
         common_data = get_common_template_data()
         return render_template_with_theme(
             'admin_keys.html',
-            keys=filtered_keys,
+            keys=keys_page_items,
+            current_page=page,
+            total_pages=total_pages,
+            total_keys=total,
+            per_page=per_page,
             hosts=hosts,
             users=users,
             q=q,
@@ -852,6 +870,9 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/admin/keys/table.partial')
     @login_required
     def admin_keys_table_partial():
+        page = max(1, request.args.get('page', 1, type=int) or 1)
+        per_page = request.args.get('per_page', 20, type=int) or 20
+        per_page = max(10, min(200, per_page))
         q = (request.args.get('q') or '').strip()
         host_filter = (request.args.get('host_name') or '').strip()
         expiry_filter = (request.args.get('expiry') or 'all').strip().lower()
@@ -918,7 +939,10 @@ def create_webhook_app(bot_controller_instance):
                 if not exp_dt or (exp_dt - now).total_seconds() >= 0:
                     continue
             filtered_keys.append(kk)
-        return render_template_with_theme('partials/admin_keys_table.html', keys=filtered_keys)
+        filtered_keys.sort(key=lambda x: x.get('key_id', 0), reverse=True)
+        start = (page - 1) * per_page
+        keys_page_items = filtered_keys[start:start + per_page]
+        return render_template_with_theme('partials/admin_keys_table.html', keys=keys_page_items)
 
     @flask_app.route('/admin/keys/bulk-action', methods=['POST'])
     @login_required
