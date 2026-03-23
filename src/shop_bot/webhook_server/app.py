@@ -166,19 +166,17 @@ def create_webhook_app(bot_controller_instance):
             current_template = get_setting('panel_template') or 'Default'
             template_path = f"{current_template}/{template_name}"
             
-            # Check if template exists
-            template_file = os.path.join(flask_app.template_folder, template_path)
+            templates_root = os.path.join(app_dir, 'templates')
+            template_file = os.path.join(templates_root, template_path)
             if not os.path.exists(template_file):
                 logger.warning(f"Template {template_path} not found, falling back to Default")
                 template_path = f"Default/{template_name}"
                 
-                # Check if Default template exists
-                default_file = os.path.join(flask_app.template_folder, template_path)
+                default_file = os.path.join(templates_root, template_path)
                 if not os.path.exists(default_file):
                     logger.error(f"Default template {template_path} not found either!")
-                    # Try Bootstrap as last resort
                     bootstrap_path = f"Bootstrap/{template_name}"
-                    bootstrap_file = os.path.join(flask_app.template_folder, bootstrap_path)
+                    bootstrap_file = os.path.join(templates_root, bootstrap_path)
                     if os.path.exists(bootstrap_file):
                         logger.warning(f"Using Bootstrap template {bootstrap_path} as fallback")
                         template_path = bootstrap_path
