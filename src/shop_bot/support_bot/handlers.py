@@ -215,7 +215,7 @@ def get_support_router() -> Router:
                     chat_id=int(forum_chat_id),
                     text=(
                         f"🆕 Новое обращение от {username} (ID: {message.from_user.id}) по тикету #{ticket_id}:" if created_new
-                        else f"✉️ Новое сообщение по тикету #{ticket_id} от {username} (ID: {message.from_user.id}):"
+                        else f"{message.text or message.caption or ''}"
                     ),
                     message_thread_id=int(thread_id)
                 )
@@ -235,27 +235,28 @@ def get_support_router() -> Router:
             )
         else:
             await message.answer(
-                f"✉️ Сообщение добавлено в ваш открытый тикет #{ticket_id}.",
+                f"✅ Сообщение отправлено.",
                 reply_markup=_user_main_reply_kb()
             )
-        # Уведомить всех администраторов
-        try:
-            for aid in get_admin_ids():
-                try:
-                    await bot.send_message(
-                        int(aid),
-                        (
-                            "🆘 Новое обращение в поддержку\n"
-                            f"ID тикета: #{ticket_id}\n"
-                            f"От пользователя: @{message.from_user.username or message.from_user.full_name} (ID: {user_id})\n"
-                            f"Тема: {subject or '—'}\n\n"
-                            f"Сообщение:\n{message.text or ''}"
+        # Уведомить всех администраторов только при создании нового тикета
+        if created_new:
+            try:
+                for aid in get_admin_ids():
+                    try:
+                        await bot.send_message(
+                            int(aid),
+                            (
+                                "🆘 Новое обращение в поддержку\n"
+                                f"ID тикета: #{ticket_id}\n"
+                                f"От пользователя: @{message.from_user.username or message.from_user.full_name} (ID: {user_id})\n"
+                                f"Тема: {subject or '—'}\n\n"
+                                f"Сообщение:\n{message.text or ''}"
+                            )
                         )
-                    )
-                except Exception:
-                    pass
-        except Exception as e:
-            logger.warning(f"Не удалось уведомить администраторов о тикете {ticket_id}: {e}")
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.warning(f"Не удалось уведомить администраторов о тикете {ticket_id}: {e}")
 
     @router.callback_query(F.data == "support_my_tickets")
     async def support_my_tickets_handler(callback: types.CallbackQuery):
@@ -383,26 +384,12 @@ def get_support_router() -> Router:
                 username = (message.from_user.username and f"@{message.from_user.username}") or message.from_user.full_name or str(message.from_user.id)
                 await bot.send_message(
                     chat_id=int(forum_chat_id),
-                    text=f"✉️ Новое сообщение по тикету #{ticket_id} от {username} (ID: {message.from_user.id}):",
+                    text=f"{message.text or message.caption or ''}",
                     message_thread_id=int(thread_id)
                 )
                 await bot.copy_message(chat_id=int(forum_chat_id), from_chat_id=message.chat.id, message_id=message.message_id, message_thread_id=int(thread_id))
         except Exception as e:
             logger.warning(f"Не удалось отзеркалить ответ пользователя в форум: {e}")
-        admin_id = get_setting("admin_telegram_id")
-        if admin_id:
-            try:
-                await bot.send_message(
-                    int(admin_id),
-                    (
-                        "📩 Новое сообщение в тикете\n"
-                        f"ID тикета: #{ticket_id}\n"
-                        f"От пользователя: @{message.from_user.username or message.from_user.full_name} (ID: {message.from_user.id})\n\n"
-                        f"Сообщение:\n{message.text or ''}"
-                    )
-                )
-            except Exception as e:
-                logger.warning(f"Не удалось уведомить администратора о сообщении тикета #{ticket_id}: {e}")
 
     @router.message(F.is_topic_message == True)
     async def forum_thread_message_handler(message: types.Message, bot: Bot, state: FSMContext):

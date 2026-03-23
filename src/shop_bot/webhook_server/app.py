@@ -1161,7 +1161,7 @@ def create_webhook_app(bot_controller_instance):
                         loop = current_app.config.get('EVENT_LOOP')
                         user_chat_id = ticket.get('user_id')
                         if bot and loop and loop.is_running() and user_chat_id:
-                            text = f"Ответ по тикету #{ticket_id}:\n\n{message}"
+                            text = f"{message}"
                             asyncio.run_coroutine_threadsafe(bot.send_message(user_chat_id, text), loop)
                         else:
                             logger.error("Ответ поддержки: support-бот или цикл событий недоступны; сообщение пользователю не отправлено.")
@@ -1173,7 +1173,7 @@ def create_webhook_app(bot_controller_instance):
                         forum_chat_id = ticket.get('forum_chat_id')
                         thread_id = ticket.get('message_thread_id')
                         if bot and loop and loop.is_running() and forum_chat_id and thread_id:
-                            text = f"💬 Ответ админа из панели по тикету #{ticket_id}:\n\n{message}"
+                            text = f"💬 {message}"
                             asyncio.run_coroutine_threadsafe(
                                 bot.send_message(chat_id=int(forum_chat_id), text=text, message_thread_id=int(thread_id)),
                                 loop

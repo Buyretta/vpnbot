@@ -645,6 +645,16 @@
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (this.value.trim()) {
+          // Устанавливаем скрытое поле action=reply перед отправкой
+          let actionField = document.getElementById('reply-action');
+          if (!actionField) {
+            actionField = document.createElement('input');
+            actionField.type = 'hidden';
+            actionField.name = 'action';
+            actionField.id = 'reply-action';
+            actionField.value = 'reply';
+            replyForm.appendChild(actionField);
+          }
           replyForm.submit();
         }
       }
