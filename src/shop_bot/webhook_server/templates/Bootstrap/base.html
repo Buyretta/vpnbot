@@ -238,8 +238,8 @@
             const fetchElements = document.querySelectorAll('[data-fetch-url]');
             fetchElements.forEach(element => {
                 const url = element.dataset.fetchUrl;
-                const interval = parseInt(element.dataset.fetchInterval) || 30000;
-                if (url) {
+                const interval = parseInt(element.dataset.fetchInterval || '0');
+                if (url && interval > 0) {
                     fetchContent(element, url);
                     setInterval(() => {
                         fetchContent(element, url);
