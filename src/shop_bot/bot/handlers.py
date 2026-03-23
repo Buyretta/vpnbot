@@ -1657,106 +1657,87 @@ def get_user_router() -> Router:
     async def connect_v2rayng_handler(callback: types.CallbackQuery):
         await callback.answer()
         key_id = int(callback.data.split("_")[2])
-        await handle_app_connection(callback, key_id, "v2rayng://")
+        await handle_app_connection(callback, key_id, "v2rayng")
 
     @user_router.callback_query(F.data.startswith("connect_happ_"))
     @registration_required
     async def connect_happ_handler(callback: types.CallbackQuery):
         await callback.answer()
         key_id = int(callback.data.split("_")[2])
-        await handle_app_connection(callback, key_id, "happ://")
+        await handle_app_connection(callback, key_id, "happ")
 
     @user_router.callback_query(F.data.startswith("connect_v2box_"))
     @registration_required
     async def connect_v2box_handler(callback: types.CallbackQuery):
         await callback.answer()
         key_id = int(callback.data.split("_")[2])
-        await handle_app_connection(callback, key_id, "v2box://")
+        await handle_app_connection(callback, key_id, "v2box")
 
     @user_router.callback_query(F.data.startswith("connect_v2rayn_"))
     @registration_required
     async def connect_v2rayn_handler(callback: types.CallbackQuery):
         await callback.answer()
         key_id = int(callback.data.split("_")[2])
-        await handle_app_connection(callback, key_id, "v2rayn://")
+        await handle_app_connection(callback, key_id, "v2rayn")
 
     @user_router.callback_query(F.data.startswith("connect_happ_desktop_"))
     @registration_required
     async def connect_happ_desktop_handler(callback: types.CallbackQuery):
         await callback.answer()
         key_id = int(callback.data.split("_")[2])
-        await handle_app_connection(callback, key_id, "happ-desktop://")
+        await handle_app_connection(callback, key_id, "happ_desktop")
 
-    async def handle_app_connection(callback: types.CallbackQuery, key_id: int, app_scheme: str):
-        """Обработчик формирования ссылки для подключения к приложению"""
+    def _build_one_click_url(app: str, key_id: int, user_id: int) -> str | None:
         try:
-            key_data = get_key_by_id(key_id)
-            if not key_data:
-                await callback.message.edit_text("❌ Ключ не найден")
+            dom_val = get_setting("domain")
+            domain = (dom_val or "").strip() if isinstance(dom_val, str) else str(dom_val or "")
+            if not domain:
+                return None
+            base = domain.rstrip("/")
+            ts = int(datetime.utcnow().timestamp())
+            secret = (os.getenv("SHOPBOT_DEEPLINK_SECRET") or get_setting("telegram_bot_token") or "").strip()
+            if not secret:
+                return None
+            payload = f"{app}|{key_id}|{user_id}|{ts}"
+            sig = hashlib.sha256((payload + "|" + secret).encode("utf-8")).hexdigest()[:24]
+            return f"{base}/open/{app}?key_id={key_id}&uid={user_id}&ts={ts}&sig={sig}"
+        except Exception:
+            return None
+
+    async def handle_app_connection(callback: types.CallbackQuery, key_id: int, app: str):
+        """One-click connect через HTTPS endpoint /open/<app> (Telegram-safe)."""
+        try:
+            user_id = callback.from_user.id
+            one_click_url = _build_one_click_url(app=app, key_id=key_id, user_id=user_id)
+            if not one_click_url:
+                await callback.message.edit_text("❌ Не настроен домен или секрет для one-click ссылок. Укажите настройку 'domain' и переменную окружения SHOPBOT_DEEPLINK_SECRET.")
                 return
-                
-            details = await xui_api.get_key_details_from_host(key_data)
-            if not details or not details['connection_string']:
-                await callback.message.edit_text("❌ Ошибка на сервере. Не удалось получить данные ключа.")
-                return
-                
-            connection_string = details['connection_string']
-            
-            # Импортируем urllib для URL encoding
-            from urllib.parse import quote
-            
-            # Формируем правильные ссылки для приложений
-            # Простое и надежное решение - не используем внешние сервисы
-            if app_scheme == "v2rayng://":
-                app_name = "V2RayNG"
-                
-            elif app_scheme == "happ://":
-                app_name = "Happ"
-                
-            elif app_scheme == "v2box://":
-                app_name = "V2Box"
-                
-            elif app_scheme == "v2rayn://":
-                app_name = "V2RayN"
-                
-            elif app_scheme == "happ-desktop://":
-                app_name = "Happ Desktop"
-                
-            else:
-                app_name = "приложение"
-            
-            # Не используем внешние ссылки для надежности
-            app_link = None
-            
-            # Создаем кнопки
+
+            app_names = {
+                "v2rayng": "V2RayNG",
+                "happ": "Happ",
+                "v2box": "V2Box",
+                "v2rayn": "V2RayN",
+                "happ_desktop": "Happ Desktop",
+            }
+            app_name = app_names.get(app, app)
+
             builder = InlineKeyboardBuilder()
-            
-            # Только кнопка копирования конфигурации
-            builder.button(text="📋 Копировать конфигурацию", callback_data=f"copy_config_{key_id}")
-            builder.button(text="⬅️ Назад к выбору", callback_data=f"connect_apps_{key_id}")
+            builder.button(text="🔗 Подключиться (1 клик)", url=one_click_url)
+            builder.button(text="⬅️ Назад", callback_data=f"connect_apps_{key_id}")
             builder.adjust(1, 1)
-            
+
             await callback.message.edit_text(
-                f"🔗 <b>Подключение через {app_name}</b>\n\n"
-                f"📱 <b>Инструкция по импорту:</b>\n\n"
-                f"1. ✅ Установите приложение {app_name} из меню 'Скачать'\n"
-                f"2. 📋 Нажмите кнопку ниже для копирования конфигурации\n"
-                f"3. 📱 Откройте приложение {app_name}\n"
-                f"4. ➕ Нажмите '+' или 'Добавить профиль'\n"
-                f"5. 📋 Вставьте скопированную конфигурацию\n"
-                f"6. 💾 Сохраните и подключитесь\n\n"
-                f"🔧 <b>Ваша конфигурация:</b>\n"
-                f"<code>{connection_string}</code>\n\n"
-                f"💡 <b>Совет:</b> Удерживайте на конфигурации выше для копирования",
+                f"🔗 <b>{app_name}</b>\n\n"
+                f"Нажмите кнопку ниже — откроется браузер и сразу предложит открыть приложение.",
                 reply_markup=builder.as_markup(),
-                disable_web_page_preview=True
+                disable_web_page_preview=True,
             )
-            
         except Exception as e:
-            logger.error(f"Ошибка при формировании ссылки для приложения: {e}")
+            logger.error(f"Ошибка при формировании one-click ссылки: {e}")
             try:
                 await callback.message.edit_text("❌ Произошла ошибка при формировании ссылки подключения.")
-            except:
+            except Exception:
                 pass
 
     @user_router.callback_query(F.data.startswith("copy_config_"))

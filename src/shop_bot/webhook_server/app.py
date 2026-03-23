@@ -121,6 +121,107 @@ def create_webhook_app(bot_controller_instance):
     csrf = CSRFProtect()
     csrf.init_app(flask_app)
 
+    def _oneclick_secret() -> str:
+        try:
+            return (os.getenv('SHOPBOT_DEEPLINK_SECRET') or get_setting('telegram_bot_token') or '').strip()
+        except Exception:
+            return (os.getenv('SHOPBOT_DEEPLINK_SECRET') or '').strip()
+
+    def _oneclick_sig(app: str, key_id: int, uid: int, ts: int) -> str:
+        secret = _oneclick_secret()
+        payload = f"{app}|{key_id}|{uid}|{ts}" + "|" + secret
+        return hashlib.sha256(payload.encode('utf-8')).hexdigest()[:24]
+
+    @flask_app.route('/open/<app_name>')
+    @csrf.exempt
+    def open_app_deeplink(app_name: str):
+        """Public endpoint for Telegram button: returns HTML that redirects to app deep-link.
+        Telegram only allows http(s) URLs in inline buttons, so we front deep-links via this page.
+        """
+        try:
+            key_id = int(request.args.get('key_id') or '0')
+            uid = int(request.args.get('uid') or '0')
+            ts = int(request.args.get('ts') or '0')
+            sig = (request.args.get('sig') or '').strip()
+        except Exception:
+            return 'Invalid parameters', 400
+
+        # Basic validations
+        if key_id <= 0 or uid <= 0 or not sig or not ts:
+            return 'Invalid parameters', 400
+
+        secret = _oneclick_secret()
+        if not secret:
+            return 'One-click secret not configured', 500
+
+        # TTL: 5 minutes
+        now_ts = int(time.time())
+        if abs(now_ts - ts) > 300:
+            return 'Link expired', 410
+
+        expected = _oneclick_sig(app_name, key_id, uid, ts)
+        if not compare_digest(expected, sig):
+            return 'Invalid signature', 403
+
+        # Load connection string
+        try:
+            key = get_key_by_id(key_id)
+            if not key:
+                return 'Key not found', 404
+        except Exception:
+            return 'Key not found', 404
+
+        try:
+            details = asyncio.run(xui_api.get_key_details_from_host(key))
+            connection_string = (details or {}).get('connection_string')
+        except Exception as e:
+            logger.warning(f"oneclick: failed to get connection string: {e}")
+            connection_string = None
+
+        if not connection_string:
+            return 'Connection string not available', 500
+
+        # Build deep link per app
+        try:
+            encoded = urllib.parse.quote(connection_string, safe='')
+        except Exception:
+            encoded = connection_string
+
+        app = (app_name or '').strip().lower()
+        if app == 'v2rayng':
+            deeplink = f"v2rayng://install-config/?url={encoded}"
+        elif app == 'v2box':
+            deeplink = f"v2box://install-config/?url={encoded}"
+        elif app == 'happ' or app == 'happ_desktop':
+            # Happ умеет импортировать vless:// из URL/clipboard; на iOS/Android может быть зарегистрирован обработчик vless://
+            deeplink = connection_string
+        elif app == 'v2rayn':
+            # Desktop: often no URL scheme; fallback to plain vless which user can copy
+            deeplink = connection_string
+        else:
+            deeplink = connection_string
+
+        # Return HTML with auto-redirect + manual link
+        html = f"""<!doctype html>
+<html lang=\"ru\"><head>
+<meta charset=\"utf-8\" />
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+<title>Подключение…</title>
+</head>
+<body style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; padding:24px;\">
+  <h3 style=\"margin:0 0 12px 0;\">Открываю приложение…</h3>
+  <p style=\"margin:0 0 16px 0;\">Если ничего не произошло, нажмите кнопку ниже.</p>
+  <p><a id=\"open\" href=\"{html_escape.escape(deeplink)}\" style=\"display:inline-block;padding:12px 16px;background:#206bc4;color:#fff;border-radius:10px;text-decoration:none;\">Открыть приложение</a></p>
+  <p style=\"margin-top:16px;color:#6b7280;font-size:13px;\">Если браузер спросит подтверждение — согласитесь.</p>
+  <script>
+    (function(){{
+      var url = document.getElementById('open').href;
+      setTimeout(function(){{ window.location.href = url; }}, 50);
+    }})();
+  </script>
+</body></html>"""
+        return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+
     # Кастомная функция render_template с поддержкой шаблонов
     def render_template_with_theme(template_name, **context):
         """Render template with theme support."""
