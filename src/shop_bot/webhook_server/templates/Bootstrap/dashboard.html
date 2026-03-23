@@ -3,15 +3,9 @@
 {% block title %}Панель управления{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div class="container-fluid">
-        <div class="row align-items-center g-2">
-            <div class="col">
-                <div class="page-pretitle">Обзор</div>
-                <h2 class="page-title">Панель управления</h2>
-            </div>
-        </div>
-    </div>
+<div class="container-fluid pt-3">
+    <div class="small text-uppercase text-muted">Обзор</div>
+    <h2 class="h4 mb-3">Панель управления</h2>
 </div>
 
 <div class="container-fluid mb-4">
@@ -332,7 +326,6 @@
             }
             
             if (hostSelect) {
-                initSoftSelect('st-host', 'Выберите хост...');
                 hostSelect.addEventListener('change', loadAndDrawTop);
                 await loadAndDrawTop();
             }
@@ -490,15 +483,23 @@
             // Initialize combined stats chart
             const combinedCanvas = document.getElementById('combinedStatsChart');
             if (combinedCanvas && CHART_DATA) {
+                const usersMap = CHART_DATA.users || {};
+                const keysMap = CHART_DATA.keys || {};
+                const labels = Array.from(new Set([
+                    ...Object.keys(usersMap),
+                    ...Object.keys(keysMap)
+                ])).sort();
+                const usersSeries = labels.map((d) => Number(usersMap[d] || 0));
+                const keysSeries = labels.map((d) => Number(keysMap[d] || 0));
                 const ctx = combinedCanvas.getContext('2d');
                 new Chart(ctx, {
                     type: 'line',
                     data: {
-                        labels: CHART_DATA.labels || [],
+                        labels: labels,
                         datasets: [
                             {
                                 label: 'Пользователи',
-                                data: CHART_DATA.users || [],
+                                data: usersSeries,
                                 borderColor: '#667eea',
                                 backgroundColor: 'rgba(102, 126, 234, 0.1)',
                                 borderWidth: 2,
@@ -507,7 +508,7 @@
                             },
                             {
                                 label: 'Ключи',
-                                data: CHART_DATA.keys || [],
+                                data: keysSeries,
                                 borderColor: '#2fb344',
                                 backgroundColor: 'rgba(47, 179, 68, 0.1)',
                                 borderWidth: 2,
