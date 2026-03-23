@@ -128,13 +128,34 @@
   </div>
 </div>
 
-<div id="ticket-context-menu" class="dropdown-menu">
-  <button class="dropdown-item" type="button" data-action="open"><i class="bi bi-box-arrow-up-right me-2"></i>Открыть</button>
-  <button class="dropdown-item" type="button" data-action="toggle-status"><i class="bi bi-arrow-repeat me-2"></i>Сменить статус</button>
-  <div class="dropdown-divider"></div>
-  <button class="dropdown-item text-danger" type="button" data-action="delete"><i class="bi bi-trash me-2"></i>Удалить</button>
+<div class="offcanvas offcanvas-end" tabindex="-1" id="supportChatOffcanvas" aria-labelledby="supportChatOffcanvasLabel" style="--bs-offcanvas-width:min(820px,100vw);">
+  <div class="offcanvas-header border-bottom">
+    <div class="min-w-0">
+      <h5 class="offcanvas-title text-truncate" id="supportChatOffcanvasLabel">Тикет</h5>
+      <div class="small text-muted text-truncate" id="support-chat-subtitle"></div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body p-0 d-flex flex-column" style="height:100%;">
+    <div class="px-3 py-2 border-bottom">
+      <div class="btn-group w-100" role="group" id="ticket-status-group">
+        <button type="button" class="btn btn-outline-success btn-sm" id="ticket-open-btn"><i class="bi bi-unlock me-1"></i>Открыть</button>
+        <button type="button" class="btn btn-outline-warning btn-sm" id="ticket-close-btn"><i class="bi bi-lock me-1"></i>Закрыть</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" id="ticket-delete-btn"><i class="bi bi-trash me-1"></i>Удалить</button>
+      </div>
+    </div>
+    <div id="support-chat-messages" class="flex-grow-1 p-3 bg-body-tertiary overflow-auto d-flex flex-column gap-2"></div>
+    <div class="border-top p-2">
+      <form id="support-chat-form" class="d-flex gap-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <textarea id="support-chat-input" class="form-control" rows="2" maxlength="4000" placeholder="Введите сообщение..." style="resize:none;"></textarea>
+        <button type="submit" id="support-chat-send" class="btn btn-primary"><i class="bi bi-send"></i></button>
+      </form>
+    </div>
+  </div>
 </div>
 
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script>
   (function(){
     const qInput = document.getElementById('support-q');
@@ -147,8 +168,22 @@
     const filtersModalEl = document.getElementById('supportFiltersModal');
     const table = document.getElementById('support-table');
     const tbody = document.getElementById('support-tbody');
-    const menu = document.getElementById('ticket-context-menu');
-    if (!table || !tbody || !menu) return;
+    const offcanvasEl = document.getElementById('supportChatOffcanvas');
+    const titleEl = document.getElementById('supportChatOffcanvasLabel');
+    const subtitleEl = document.getElementById('support-chat-subtitle');
+    const messagesEl = document.getElementById('support-chat-messages');
+    const chatForm = document.getElementById('support-chat-form');
+    const chatInput = document.getElementById('support-chat-input');
+    const sendBtn = document.getElementById('support-chat-send');
+    const openBtn = document.getElementById('ticket-open-btn');
+    const closeBtn = document.getElementById('ticket-close-btn');
+    const deleteBtn = document.getElementById('ticket-delete-btn');
+    if (!table || !tbody || !offcanvasEl || !messagesEl || !chatForm || !chatInput) return;
+
+    const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl);
+    const socket = window.io ? window.io({ transports: ['websocket', 'polling'] }) : null;
+    let activeTicketId = null;
+    let activeTicketStatus = 'open';
 
     function updateQuery(next) {
       const params = new URLSearchParams(window.location.search);
@@ -202,46 +237,196 @@
       });
     }
 
-    table.addEventListener('dblclick', (e) => {
-      const row = e.target.closest('.ticket-row');
-      if (!row) return;
-      const href = row.dataset.href;
-      if (href) window.location.href = href;
-    });
-
-    let currentContextRow = null;
-    function closeContextMenu() {
-      menu.classList.remove('show');
-      menu.style.position = '';
-      menu.style.left = '';
-      menu.style.top = '';
-      currentContextRow = null;
+    function esc(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
 
-    tbody.addEventListener('contextmenu', (e) => {
+    function renderMessages(items) {
+      if (!Array.isArray(items) || !items.length) {
+        messagesEl.innerHTML = '<div class="text-center text-muted py-4">Сообщений пока нет</div>';
+        return;
+      }
+      messagesEl.innerHTML = items.map((m) => {
+        const isAdmin = m.sender === 'admin';
+        const align = isAdmin ? 'justify-content-end' : 'justify-content-start';
+        const bubbleCls = isAdmin ? 'bg-primary text-white' : 'bg-body border';
+        return `
+          <div class="d-flex ${align}">
+            <div class="rounded px-3 py-2 ${bubbleCls}" style="max-width:85%;">
+              <div class="small" style="white-space:pre-wrap;">${esc(m.content)}</div>
+              <div class="small opacity-75 mt-1">${esc(m.created_at || '')}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function syncActionButtons() {
+      const isOpen = activeTicketStatus === 'open';
+      openBtn.disabled = isOpen;
+      closeBtn.disabled = !isOpen;
+      chatInput.disabled = !isOpen;
+      sendBtn.disabled = !isOpen;
+    }
+
+    async function loadTicket(ticketId) {
+      const resp = await fetch(`/support/${ticketId}/panel.json`, {
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!resp.ok) throw new Error('ticket_not_found');
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error || 'load_failed');
+      activeTicketId = ticketId;
+      activeTicketStatus = data.ticket.status || 'open';
+      titleEl.textContent = `Тикет #${data.ticket.ticket_id}`;
+      subtitleEl.textContent = `${data.ticket.user_id}${data.ticket.subject ? ' • ' + data.ticket.subject : ''}`;
+      renderMessages(data.messages || []);
+      syncActionButtons();
+      if (socket) socket.emit('support_join_ticket', { ticket_id: ticketId });
+      offcanvas.show();
+      if (activeTicketStatus === 'open') {
+        setTimeout(() => chatInput.focus(), 200);
+      }
+    }
+
+    async function ticketAction(action, message) {
+      if (!activeTicketId) return;
+      const fd = new FormData();
+      fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
+      fd.append('action', action);
+      if (message) fd.append('message', message);
+      const resp = await fetch(`/support/${activeTicketId}/action.json`, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || 'action_failed');
+      }
+      return data;
+    }
+
+    tbody.addEventListener('click', async (e) => {
       const row = e.target.closest('.ticket-row');
       if (!row) return;
-      e.preventDefault();
-      currentContextRow = row;
-      menu.classList.add('show');
-      menu.style.position = 'fixed';
-      menu.style.left = `${e.clientX}px`;
-      menu.style.top = `${e.clientY}px`;
-      const toggleBtn = menu.querySelector('[data-action="toggle-status"]');
-      if (toggleBtn) {
-        toggleBtn.innerHTML = row.dataset.status === 'open'
-          ? '<i class="bi bi-lock me-2"></i>Закрыть'
-          : '<i class="bi bi-unlock me-2"></i>Открыть';
+      const btn = e.target.closest('.btn-open-ticket');
+      if (!btn && !e.target.closest('td')) return;
+      const tid = row.getAttribute('data-ticket-id');
+      if (!tid) return;
+      try {
+        await loadTicket(Number(tid));
+      } catch (err) {
+        alert('Не удалось открыть тикет: ' + err.message);
       }
     });
 
-    document.addEventListener('click', (e) => {
-      if (!menu.contains(e.target)) closeContextMenu();
+    chatForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!activeTicketId || activeTicketStatus !== 'open') return;
+      const message = chatInput.value.trim();
+      if (!message) return;
+      chatInput.value = '';
+      try {
+        if (socket && socket.connected) {
+          socket.emit('support_send_message', { ticket_id: activeTicketId, message });
+        } else {
+          await ticketAction('reply', message);
+          await loadTicket(activeTicketId);
+        }
+      } catch (err) {
+        alert('Не удалось отправить сообщение: ' + err.message);
+      } finally {
+        chatInput.focus();
+      }
     });
-    document.addEventListener('scroll', closeContextMenu, true);
-    window.addEventListener('resize', closeContextMenu);
+
+    openBtn.addEventListener('click', async () => {
+      try {
+        await ticketAction('open');
+        activeTicketStatus = 'open';
+        syncActionButtons();
+      } catch (err) {
+        alert('Не удалось открыть тикет: ' + err.message);
+      }
+    });
+
+    closeBtn.addEventListener('click', async () => {
+      try {
+        await ticketAction('close');
+        activeTicketStatus = 'closed';
+        syncActionButtons();
+      } catch (err) {
+        alert('Не удалось закрыть тикет: ' + err.message);
+      }
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      if (!activeTicketId) return;
+      if (!window.confirm(`Удалить тикет #${activeTicketId}?`)) return;
+      try {
+        await ticketAction('delete');
+        offcanvas.hide();
+        const row = tbody.querySelector(`.ticket-row[data-ticket-id="${activeTicketId}"]`);
+        row?.remove();
+      } catch (err) {
+        alert('Не удалось удалить тикет: ' + err.message);
+      }
+    });
+
+    offcanvasEl.addEventListener('hidden.bs.offcanvas', () => {
+      if (socket && activeTicketId) socket.emit('support_leave_ticket', { ticket_id: activeTicketId });
+      activeTicketId = null;
+      activeTicketStatus = 'open';
+      messagesEl.innerHTML = '';
+      titleEl.textContent = 'Тикет';
+      subtitleEl.textContent = '';
+      chatInput.value = '';
+      syncActionButtons();
+    });
+
+    if (socket) {
+      socket.on('ticket_message', (payload) => {
+        if (!payload || Number(payload.ticket_id) !== Number(activeTicketId)) return;
+        const current = messagesEl.querySelector('.text-center.text-muted');
+        if (current) current.remove();
+        const isAdmin = payload.sender === 'admin';
+        const align = isAdmin ? 'justify-content-end' : 'justify-content-start';
+        const bubbleCls = isAdmin ? 'bg-primary text-white' : 'bg-body border';
+        const wrapper = document.createElement('div');
+        wrapper.className = `d-flex ${align}`;
+        wrapper.innerHTML = `<div class="rounded px-3 py-2 ${bubbleCls}" style="max-width:85%;"><div class="small" style="white-space:pre-wrap;">${esc(payload.content)}</div><div class="small opacity-75 mt-1">${esc(payload.created_at || '')}</div></div>`;
+        messagesEl.appendChild(wrapper);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      });
+      socket.on('ticket_status', (payload) => {
+        if (!payload || Number(payload.ticket_id) !== Number(activeTicketId)) return;
+        activeTicketStatus = payload.status || activeTicketStatus;
+        syncActionButtons();
+      });
+      socket.on('ticket_deleted', (payload) => {
+        if (!payload) return;
+        const row = tbody.querySelector(`.ticket-row[data-ticket-id="${payload.ticket_id}"]`);
+        row?.remove();
+        if (Number(payload.ticket_id) === Number(activeTicketId)) {
+          offcanvas.hide();
+        }
+      });
+      socket.on('ticket_error', (payload) => {
+        if (!payload) return;
+        alert('Ошибка чата: ' + (payload.error || 'unknown'));
+      });
+    }
+
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeContextMenu();
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && qInput) {
         e.preventDefault();
         if (filtersModalEl && window.bootstrap?.Modal) {
@@ -250,48 +435,22 @@
         qInput.focus();
         qInput.select();
       }
+      if (e.key === 'Enter' && !e.shiftKey && document.activeElement === chatInput) {
+        e.preventDefault();
+        chatForm.requestSubmit();
+      }
     });
 
-    function createAndSubmitForm(action, fields) {
-      const form = document.createElement('form');
-      form.method = 'post';
-      form.action = action;
-      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-      const csrfInput = document.createElement('input');
-      csrfInput.type = 'hidden';
-      csrfInput.name = 'csrf_token';
-      csrfInput.value = csrf;
-      form.appendChild(csrfInput);
-      Object.keys(fields).forEach((key) => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = fields[key];
-        form.appendChild(input);
-      });
-      document.body.appendChild(form);
-      form.submit();
-    }
-
-    menu.addEventListener('click', (e) => {
-      const actionBtn = e.target.closest('[data-action]');
-      if (!actionBtn || !currentContextRow) return;
-      const action = actionBtn.dataset.action;
-      const ticketId = currentContextRow.dataset.ticketId;
-      const href = currentContextRow.dataset.href;
-      if (!ticketId) return;
-      if (action === 'open' && href) {
-        window.location.href = href;
+    syncActionButtons();
+    table.addEventListener('dblclick', async (e) => {
+      const row = e.target.closest('.ticket-row');
+      if (!row) return;
+      const tid = row.getAttribute('data-ticket-id');
+      if (!tid) return;
+      try {
+        await loadTicket(Number(tid));
+      } catch (_) {
         return;
-      }
-      if (action === 'toggle-status') {
-        const nextAction = currentContextRow.dataset.status === 'open' ? 'close' : 'open';
-        createAndSubmitForm(`/support/${ticketId}`, { action: nextAction });
-        return;
-      }
-      if (action === 'delete') {
-        if (!window.confirm(`Удалить тикет #${ticketId}?`)) return;
-        createAndSubmitForm(`/support/${ticketId}/delete`, {});
       }
     });
   })();

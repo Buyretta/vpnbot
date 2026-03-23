@@ -108,6 +108,7 @@ def main():
 
     bot_controller = BotController()
     flask_app = create_webhook_app(bot_controller)
+    socketio = flask_app.extensions.get('socketio')
     
     async def shutdown(sig: signal.Signals, loop: asyncio.AbstractEventLoop):
         logger.info(f"Получен сигнал: {sig.name}. Запускаю завершение работы...")
@@ -129,7 +130,11 @@ def main():
             loop.add_signal_handler(sig, lambda sig=sig: asyncio.create_task(shutdown(sig, loop)))
         
         flask_thread = threading.Thread(
-            target=lambda: flask_app.run(host='0.0.0.0', port=1488, use_reloader=False, debug=False),
+            target=lambda: (
+                socketio.run(flask_app, host='0.0.0.0', port=1488, use_reloader=False, debug=False, allow_unsafe_werkzeug=True)
+                if socketio else
+                flask_app.run(host='0.0.0.0', port=1488, use_reloader=False, debug=False)
+            ),
             daemon=True
         )
         flask_thread.start()

@@ -13,6 +13,7 @@ from functools import wraps
 from math import ceil
 from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify, send_file
 from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_socketio import SocketIO, join_room, leave_room, emit
 import secrets
 import urllib.parse
 import urllib.request
@@ -112,6 +113,8 @@ def create_webhook_app(bot_controller_instance):
         template_folder='templates',
         static_folder='static'
     )
+    socketio = SocketIO(flask_app, cors_allowed_origins="*", async_mode="threading", manage_session=False)
+    flask_app.extensions['socketio'] = socketio
     
     # SECRET_KEY из окружения или сгенерированный на лету (без хардкода)
     flask_app.config['SECRET_KEY'] = os.getenv('SHOPBOT_SECRET_KEY') or secrets.token_hex(32)
@@ -716,6 +719,41 @@ def create_webhook_app(bot_controller_instance):
         except Exception:
             keys = []
         return render_template_with_theme('partials/user_keys_table.html', keys=keys)
+
+    @flask_app.route('/users/<int:user_id>/panel.partial')
+    @login_required
+    def user_panel_partial(user_id: int):
+        user = get_user(user_id)
+        if not user:
+            return '<div class="text-danger small">Пользователь не найден.</div>', 404
+        keys = []
+        referrals = []
+        balance = 0.0
+        try:
+            keys = get_user_keys(user_id) or []
+        except Exception:
+            keys = []
+        try:
+            referrals = get_referrals_for_user(user_id) or []
+        except Exception:
+            referrals = []
+        try:
+            balance = float(get_balance(user_id) or 0.0)
+        except Exception:
+            balance = 0.0
+        try:
+            from shop_bot.data_manager.database import get_total_keys_count_for_user
+            keys_count = int(get_total_keys_count_for_user(user_id) or 0)
+        except Exception:
+            keys_count = len(keys)
+        return render_template_with_theme(
+            'partials/user_manage_panel.html',
+            user=user,
+            keys=keys,
+            keys_count=keys_count,
+            balance=balance,
+            referrals=referrals
+        )
 
     @flask_app.route('/users/<int:user_id>/balance/adjust', methods=['POST'])
     @login_required
@@ -1609,6 +1647,36 @@ def create_webhook_app(bot_controller_instance):
         common_data = get_common_template_data()
         return render_template_with_theme('admin_balance.html', user=user, balance=balance, referrals=referrals, **common_data)
 
+    def _emit_ticket_update(ticket_id: int, event_name: str, payload: dict):
+        try:
+            socketio.emit(event_name, payload, room=f"ticket_{int(ticket_id)}")
+        except Exception as e:
+            logger.warning(f"Socket emit error for ticket {ticket_id}: {e}")
+
+    def _notify_ticket_user(ticket: dict, text: str):
+        try:
+            bot = _support_bot_controller.get_bot_instance()
+            loop = current_app.config.get('EVENT_LOOP')
+            user_chat_id = ticket.get('user_id')
+            if bot and loop and loop.is_running() and user_chat_id:
+                asyncio.run_coroutine_threadsafe(bot.send_message(int(user_chat_id), text), loop)
+        except Exception as e:
+            logger.warning(f"Не удалось уведомить пользователя {ticket.get('user_id')}: {e}")
+
+    def _mirror_to_forum(ticket: dict, text: str):
+        try:
+            bot = _support_bot_controller.get_bot_instance()
+            loop = current_app.config.get('EVENT_LOOP')
+            forum_chat_id = ticket.get('forum_chat_id')
+            thread_id = ticket.get('message_thread_id')
+            if bot and loop and loop.is_running() and forum_chat_id and thread_id:
+                asyncio.run_coroutine_threadsafe(
+                    bot.send_message(chat_id=int(forum_chat_id), text=text, message_thread_id=int(thread_id)),
+                    loop
+                )
+        except Exception as e:
+            logger.warning(f"Не удалось отправить сообщение в тему форума тикета {ticket.get('ticket_id')}: {e}")
+
     @flask_app.route('/support')
     @login_required
     def support_list_page():
@@ -1687,30 +1755,14 @@ def create_webhook_app(bot_controller_instance):
                     flash('Сообщение не может быть пустым.', 'warning')
                 else:
                     add_support_message(ticket_id, sender='admin', content=message)
-                    try:
-                        bot = _support_bot_controller.get_bot_instance()
-                        loop = current_app.config.get('EVENT_LOOP')
-                        user_chat_id = ticket.get('user_id')
-                        if bot and loop and loop.is_running() and user_chat_id:
-                            text = f"{message}"
-                            asyncio.run_coroutine_threadsafe(bot.send_message(user_chat_id, text), loop)
-                        else:
-                            logger.error("Ответ поддержки: support-бот или цикл событий недоступны; сообщение пользователю не отправлено.")
-                    except Exception as e:
-                        logger.error(f"Ответ поддержки: не удалось отправить сообщение пользователю {ticket.get('user_id')} через support-бота: {e}", exc_info=True)
-                    try:
-                        bot = _support_bot_controller.get_bot_instance()
-                        loop = current_app.config.get('EVENT_LOOP')
-                        forum_chat_id = ticket.get('forum_chat_id')
-                        thread_id = ticket.get('message_thread_id')
-                        if bot and loop and loop.is_running() and forum_chat_id and thread_id:
-                            text = f"💬 {message}"
-                            asyncio.run_coroutine_threadsafe(
-                                bot.send_message(chat_id=int(forum_chat_id), text=text, message_thread_id=int(thread_id)),
-                                loop
-                            )
-                    except Exception as e:
-                        logger.warning(f"Ответ поддержки: не удалось отзеркалить сообщение в тему форума для тикета {ticket_id}: {e}")
+                    _notify_ticket_user(ticket, message)
+                    _mirror_to_forum(ticket, f"💬 {message}")
+                    _emit_ticket_update(ticket_id, "ticket_message", {
+                        "ticket_id": ticket_id,
+                        "sender": "admin",
+                        "content": message,
+                        "created_at": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    })
                     flash('Ответ отправлен.', 'success')
                 return redirect(url_for('support_ticket_page', ticket_id=ticket_id))
             elif action == 'close':
@@ -1736,6 +1788,7 @@ def create_webhook_app(bot_controller_instance):
                             asyncio.run_coroutine_threadsafe(bot.send_message(int(user_chat_id), text), loop)
                     except Exception as e:
                         logger.warning(f"Закрытие тикета: не удалось уведомить пользователя {ticket.get('user_id')} о закрытии тикета #{ticket_id}: {e}")
+                    _emit_ticket_update(ticket_id, "ticket_status", {"ticket_id": ticket_id, "status": "closed"})
                     flash('Тикет закрыт.', 'success')
                 else:
                     flash('Не удалось закрыть тикет.', 'danger')
@@ -1764,6 +1817,7 @@ def create_webhook_app(bot_controller_instance):
                             asyncio.run_coroutine_threadsafe(bot.send_message(int(user_chat_id), text), loop)
                     except Exception as e:
                         logger.warning(f"Открытие тикета: не удалось уведомить пользователя {ticket.get('user_id')} об открытии тикета #{ticket_id}: {e}")
+                    _emit_ticket_update(ticket_id, "ticket_status", {"ticket_id": ticket_id, "status": "open"})
                     flash('Тикет открыт.', 'success')
                 else:
                     flash('Не удалось открыть тикет.', 'danger')
@@ -1793,6 +1847,120 @@ def create_webhook_app(bot_controller_instance):
             "status": ticket.get('status'),
             "messages": items
         })
+
+    @flask_app.route('/support/<int:ticket_id>/panel.json')
+    @login_required
+    def support_ticket_panel_api(ticket_id):
+        ticket = get_ticket(ticket_id)
+        if not ticket:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        messages = get_ticket_messages(ticket_id) or []
+        return jsonify({
+            "ok": True,
+            "ticket": {
+                "ticket_id": ticket.get('ticket_id'),
+                "user_id": ticket.get('user_id'),
+                "subject": ticket.get('subject') or '',
+                "status": ticket.get('status') or 'open',
+                "updated_at": ticket.get('updated_at') or ''
+            },
+            "messages": [
+                {
+                    "sender": m.get('sender'),
+                    "content": m.get('content'),
+                    "created_at": m.get('created_at')
+                }
+                for m in messages
+            ]
+        })
+
+    @flask_app.route('/support/<int:ticket_id>/action.json', methods=['POST'])
+    @login_required
+    def support_ticket_action_json(ticket_id: int):
+        ticket = get_ticket(ticket_id)
+        if not ticket:
+            return jsonify({"ok": False, "error": "not_found"}), 404
+        action = (request.form.get('action') or '').strip().lower()
+        if action == 'reply':
+            message = (request.form.get('message') or '').strip()
+            if not message:
+                return jsonify({"ok": False, "error": "empty_message"}), 400
+            add_support_message(ticket_id, sender='admin', content=message)
+            _notify_ticket_user(ticket, message)
+            _mirror_to_forum(ticket, f"💬 {message}")
+            payload = {
+                "ticket_id": ticket_id,
+                "sender": "admin",
+                "content": message,
+                "created_at": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            }
+            _emit_ticket_update(ticket_id, "ticket_message", payload)
+            return jsonify({"ok": True, "ticket_id": ticket_id, "message": payload})
+        if action == 'close':
+            if ticket.get('status') != 'closed' and set_ticket_status(ticket_id, 'closed'):
+                try:
+                    bot = _support_bot_controller.get_bot_instance()
+                    loop = current_app.config.get('EVENT_LOOP')
+                    forum_chat_id = ticket.get('forum_chat_id')
+                    thread_id = ticket.get('message_thread_id')
+                    if bot and loop and loop.is_running() and forum_chat_id and thread_id:
+                        asyncio.run_coroutine_threadsafe(
+                            bot.close_forum_topic(chat_id=int(forum_chat_id), message_thread_id=int(thread_id)),
+                            loop
+                        )
+                except Exception as e:
+                    logger.warning(f"Закрытие тикета: не удалось закрыть тему форума для тикета {ticket_id}: {e}")
+                _notify_ticket_user(ticket, f"✅ Ваш тикет #{ticket_id} был закрыт администратором. Вы можете создать новое обращение при необходимости.")
+                _emit_ticket_update(ticket_id, "ticket_status", {"ticket_id": ticket_id, "status": "closed"})
+                return jsonify({"ok": True, "ticket_id": ticket_id, "status": "closed"})
+            return jsonify({"ok": False, "error": "close_failed"}), 400
+        if action == 'open':
+            if ticket.get('status') != 'open' and set_ticket_status(ticket_id, 'open'):
+                try:
+                    bot = _support_bot_controller.get_bot_instance()
+                    loop = current_app.config.get('EVENT_LOOP')
+                    forum_chat_id = ticket.get('forum_chat_id')
+                    thread_id = ticket.get('message_thread_id')
+                    if bot and loop and loop.is_running() and forum_chat_id and thread_id:
+                        asyncio.run_coroutine_threadsafe(
+                            bot.reopen_forum_topic(chat_id=int(forum_chat_id), message_thread_id=int(thread_id)),
+                            loop
+                        )
+                except Exception as e:
+                    logger.warning(f"Открытие тикета: не удалось переоткрыть тему форума для тикета {ticket_id}: {e}")
+                _notify_ticket_user(ticket, f"🔓 Ваш тикет #{ticket_id} снова открыт. Вы можете продолжить переписку.")
+                _emit_ticket_update(ticket_id, "ticket_status", {"ticket_id": ticket_id, "status": "open"})
+                return jsonify({"ok": True, "ticket_id": ticket_id, "status": "open"})
+            return jsonify({"ok": False, "error": "open_failed"}), 400
+        if action == 'delete':
+            try:
+                bot = _support_bot_controller.get_bot_instance()
+                loop = current_app.config.get('EVENT_LOOP')
+                forum_chat_id = ticket.get('forum_chat_id')
+                thread_id = ticket.get('message_thread_id')
+                if bot and loop and loop.is_running() and forum_chat_id and thread_id:
+                    try:
+                        fut = asyncio.run_coroutine_threadsafe(
+                            bot.delete_forum_topic(chat_id=int(forum_chat_id), message_thread_id=int(thread_id)),
+                            loop
+                        )
+                        fut.result(timeout=5)
+                    except Exception:
+                        try:
+                            fut2 = asyncio.run_coroutine_threadsafe(
+                                bot.close_forum_topic(chat_id=int(forum_chat_id), message_thread_id=int(thread_id)),
+                                loop
+                            )
+                            fut2.result(timeout=5)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            if delete_ticket(ticket_id):
+                _emit_ticket_update(ticket_id, "ticket_deleted", {"ticket_id": ticket_id})
+                return jsonify({"ok": True, "ticket_id": ticket_id, "deleted": True})
+            return jsonify({"ok": False, "error": "delete_failed"}), 400
+        return jsonify({"ok": False, "error": "unknown_action"}), 400
 
     @flask_app.route('/support/<int:ticket_id>/delete', methods=['POST'])
     @login_required
@@ -1828,11 +1996,80 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.warning(f"Не удалось обработать удаление темы форума для тикета {ticket_id} перед удалением: {e}")
         if delete_ticket(ticket_id):
+            _emit_ticket_update(ticket_id, "ticket_deleted", {"ticket_id": ticket_id})
             flash(f"Тикет #{ticket_id} удалён.", 'success')
             return redirect(url_for('support_list_page'))
         else:
             flash(f"Не удалось удалить тикет #{ticket_id}.", 'danger')
             return redirect(url_for('support_ticket_page', ticket_id=ticket_id))
+
+    @socketio.on('connect')
+    def support_socket_connect():
+        if not session.get('logged_in'):
+            return False
+        emit('socket_ready', {'ok': True})
+
+    @socketio.on('support_join_ticket')
+    def support_join_ticket(data):
+        if not session.get('logged_in'):
+            return
+        try:
+            ticket_id = int((data or {}).get('ticket_id') or 0)
+        except Exception:
+            ticket_id = 0
+        if ticket_id <= 0:
+            return
+        ticket = get_ticket(ticket_id)
+        if not ticket:
+            return
+        join_room(f"ticket_{ticket_id}")
+        emit('joined_ticket', {'ticket_id': ticket_id})
+
+    @socketio.on('support_leave_ticket')
+    def support_leave_ticket(data):
+        if not session.get('logged_in'):
+            return
+        try:
+            ticket_id = int((data or {}).get('ticket_id') or 0)
+        except Exception:
+            ticket_id = 0
+        if ticket_id <= 0:
+            return
+        leave_room(f"ticket_{ticket_id}")
+
+    @socketio.on('support_send_message')
+    def support_send_message(data):
+        if not session.get('logged_in'):
+            emit('ticket_error', {'error': 'auth_required'})
+            return
+        try:
+            ticket_id = int((data or {}).get('ticket_id') or 0)
+        except Exception:
+            ticket_id = 0
+        message = ((data or {}).get('message') or '').strip()
+        if ticket_id <= 0:
+            emit('ticket_error', {'error': 'ticket_id_required'})
+            return
+        if not message:
+            emit('ticket_error', {'error': 'empty_message', 'ticket_id': ticket_id})
+            return
+        ticket = get_ticket(ticket_id)
+        if not ticket:
+            emit('ticket_error', {'error': 'not_found', 'ticket_id': ticket_id})
+            return
+        if (ticket.get('status') or '').lower() != 'open':
+            emit('ticket_error', {'error': 'ticket_closed', 'ticket_id': ticket_id})
+            return
+        add_support_message(ticket_id, sender='admin', content=message)
+        _notify_ticket_user(ticket, message)
+        _mirror_to_forum(ticket, f"💬 {message}")
+        payload = {
+            'ticket_id': ticket_id,
+            'sender': 'admin',
+            'content': message,
+            'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        _emit_ticket_update(ticket_id, "ticket_message", payload)
 
     @flask_app.route('/settings', methods=['GET', 'POST'])
     @login_required

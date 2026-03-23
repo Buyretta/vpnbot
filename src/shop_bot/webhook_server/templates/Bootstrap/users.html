@@ -57,31 +57,6 @@
     </div>
   </div>
 
-  <div class="modal fade" id="balanceModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Баланс пользователя</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-2 text-muted" id="bm-user"></div>
-          <div class="mb-3">Текущий баланс: <strong id="bm-balance">0.00</strong> ₽</div>
-          <form id="bm-form" class="d-flex gap-2" method="post">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <input class="form-control" type="text" inputmode="decimal" name="delta" placeholder="± сумма" required />
-            <button class="btn btn-primary" type="submit">Изменить</button>
-          </form>
-          <hr>
-          <div class="mb-1">Рефералы: <strong id="bm-refcount">0</strong></div>
-          <div class="small text-muted" style="max-height:180px;overflow:auto;">
-            <ul class="list-unstyled mb-0" id="bm-reflist"></ul>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="card flex-grow-1 table-container" style="min-height: calc(100vh - 280px);">
     <div class="table-wrapper">
       <table id="users-table" class="table table-sm table-hover align-middle mb-0">
@@ -141,15 +116,13 @@
     </div>
   </div>
 
-  <input type="hidden" id="balance-url-template" value="{{ url_for('adjust_balance_route', user_id=0) }}">
-
-  <div class="offcanvas offcanvas-end" tabindex="-1" id="userKeysOffcanvas" aria-labelledby="userKeysOffcanvasLabel">
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="userManageOffcanvas" aria-labelledby="userManageOffcanvasLabel" style="--bs-offcanvas-width:min(820px,100vw);">
     <div class="offcanvas-header">
-      <h5 class="offcanvas-title" id="userKeysOffcanvasLabel">Ключи пользователя</h5>
+      <h5 class="offcanvas-title" id="userManageOffcanvasLabel">Карточка пользователя</h5>
       <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
     <div class="offcanvas-body">
-      <div id="user-keys-content" class="text-muted">Выберите пользователя</div>
+      <div id="user-manage-content" class="text-muted">Выберите пользователя</div>
     </div>
   </div>
 </div>
@@ -172,9 +145,9 @@
     const bulkApplyBtn = document.getElementById('users-bulk-apply');
     const selectedCountEl = document.getElementById('users-selected-count');
     const selectAllCb = document.getElementById('users-select-all');
-    const keysOffcanvasEl = document.getElementById('userKeysOffcanvas');
-    const userKeysContent = document.getElementById('user-keys-content');
-    const userKeysOffcanvas = keysOffcanvasEl ? new bootstrap.Offcanvas(keysOffcanvasEl) : null;
+    const userOffcanvasEl = document.getElementById('userManageOffcanvas');
+    const userManageContent = document.getElementById('user-manage-content');
+    const userOffcanvas = userOffcanvasEl ? bootstrap.Offcanvas.getOrCreateInstance(userOffcanvasEl) : null;
     if (!input || !perPageSel || !tbody || !table) return;
 
     function updateQuery(next) {
@@ -202,22 +175,22 @@
       };
     }
 
-    async function openKeysForUid(uid, url, username) {
-      if (!userKeysContent) return;
-      if (!url) return;
-      userKeysContent.innerHTML = `
+    async function openUserPanel(uid, username) {
+      if (!userManageContent) return;
+      const url = `/users/${uid}/panel.partial`;
+      userManageContent.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-2">
           <strong>${username ? '@' + username : 'Пользователь'} (${uid})</strong>
         </div>
         <div class="text-center p-3 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Загрузка...</div>
       `;
-      userKeysOffcanvas?.show();
+      userOffcanvas?.show();
       try {
         const resp = await fetch(url, { headers: { 'Accept': 'text/html' }, cache: 'no-store', credentials: 'same-origin' });
         if (!resp.ok) throw new Error('Failed to fetch');
-        userKeysContent.innerHTML = await resp.text();
+        userManageContent.innerHTML = await resp.text();
       } catch(e) {
-        userKeysContent.innerHTML = `<div class="p-3 text-danger small">Ошибка загрузки: ${e.message}</div>`;
+        userManageContent.innerHTML = `<div class="p-3 text-danger small">Ошибка загрузки: ${e.message}</div>`;
       }
     }
 
@@ -232,45 +205,12 @@
     }
 
     tbody.addEventListener('click', (e) => {
-      const btnKey = e.target.closest('[data-toggle="keys"]');
+      const btnKey = e.target.closest('.btn-open-user-panel');
       if (btnKey) {
-        const uid = btnKey.getAttribute('data-user');
-        const url = btnKey.getAttribute('data-keys-url');
+        const uid = btnKey.getAttribute('data-user-id');
         const username = btnKey.getAttribute('data-username') || '';
-        openKeysForUid(uid, url, username);
+        openUserPanel(uid, username);
         return;
-      }
-
-      const btnBal = e.target.closest('.btn-user-balance-sign');
-      if (btnBal) {
-        const uid = btnBal.getAttribute('data-uid');
-        const name = btnBal.getAttribute('data-username');
-        const bal = btnBal.getAttribute('data-balance');
-        const refsRaw = btnBal.getAttribute('data-referrals');
-        let refs = [];
-        try { refs = JSON.parse(refsRaw || '[]'); } catch(e) { console.error("Referrals parse error", e); }
-        const sign = btnBal.getAttribute('data-sign');
-
-        document.getElementById('bm-user').textContent = `@${name} (${uid})`;
-        document.getElementById('bm-balance').textContent = bal;
-        document.getElementById('bm-refcount').textContent = refs.length;
-        const list = document.getElementById('bm-reflist');
-        list.innerHTML = refs.length ? refs.map(r => `<li>${r.telegram_id} (${r.username || 'N/A'})</li>`).join('') : '<li>Нет рефералов</li>';
-
-        const tpl = document.getElementById('balance-url-template')?.value || '/users/0/balance/adjust';
-        const form = document.getElementById('bm-form');
-        form.action = tpl.replace('/0/', '/' + uid + '/');
-        const amountInput = form.querySelector('input[name="delta"]');
-        if (amountInput) {
-            amountInput.value = sign === '-' ? '-' : '';
-            setTimeout(() => amountInput.focus(), 500);
-        }
-
-        const modalEl = document.getElementById('balanceModal');
-        if (modalEl) {
-            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-            modal.show();
-        }
       }
     });
 
