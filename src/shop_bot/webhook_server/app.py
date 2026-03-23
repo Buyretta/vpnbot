@@ -8,7 +8,7 @@ import base64
 import time
 import uuid
 from hmac import compare_digest
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from math import ceil
 from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify, send_file
@@ -477,37 +477,86 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/users')
     @login_required
     def users_page():
-        # Параметры пагинации и поиска
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
+        page = max(1, request.args.get('page', 1, type=int) or 1)
+        per_page = request.args.get('per_page', 20, type=int) or 20
+        per_page = max(10, min(200, per_page))
         q = (request.args.get('q') or '').strip()
+        status = (request.args.get('status') or 'all').strip().lower()
+        keys_state = (request.args.get('keys_state') or 'all').strip().lower()
+        try:
+            balance_min = request.args.get('balance_min', type=float)
+        except Exception:
+            balance_min = None
+        try:
+            balance_max = request.args.get('balance_max', type=float)
+        except Exception:
+            balance_max = None
+        tags_map = session.get('users_tags') or {}
 
-        # Получаем ограниченный набор пользователей с серверной фильтрацией
-        from shop_bot.data_manager.database import get_users_paginated
-        users, total = get_users_paginated(page=page, per_page=per_page, q=q or None)
+        users = []
+        try:
+            users = get_all_users() or []
+        except Exception:
+            users = []
 
+        filtered = []
+        qn = q.lower()
+        from shop_bot.data_manager.database import get_total_keys_count_for_user
         for user in users:
-            uid = user['telegram_id']
-            # Загружаем только количество ключей для отображения в бейдже, а не все ключи
-            from shop_bot.data_manager.database import get_total_keys_count_for_user
-            user['keys_count'] = get_total_keys_count_for_user(uid)
+            uid = user.get('telegram_id')
+            if uid is None:
+                continue
+            user = dict(user)
             try:
-                user['balance'] = get_balance(uid)
-                user['referrals'] = get_referrals_for_user(uid)
+                user['keys_count'] = int(get_total_keys_count_for_user(uid) or 0)
+            except Exception:
+                user['keys_count'] = 0
+            try:
+                user['balance'] = float(get_balance(uid) or 0)
+                user['referrals'] = get_referrals_for_user(uid) or []
             except Exception:
                 user['balance'] = 0.0
                 user['referrals'] = []
+            user['tag'] = tags_map.get(str(uid), '')
 
+            if qn:
+                hay = f"{user.get('telegram_id','')} {user.get('username') or ''} {user.get('tag') or ''}".lower()
+                if qn not in hay:
+                    continue
+            if status == 'active' and bool(user.get('is_banned')):
+                continue
+            if status == 'banned' and not bool(user.get('is_banned')):
+                continue
+            if keys_state == 'with' and int(user.get('keys_count') or 0) <= 0:
+                continue
+            if keys_state == 'without' and int(user.get('keys_count') or 0) > 0:
+                continue
+            b = float(user.get('balance') or 0)
+            if balance_min is not None and b < float(balance_min):
+                continue
+            if balance_max is not None and b > float(balance_max):
+                continue
+            filtered.append(user)
+
+        filtered.sort(key=lambda x: (x.get('username') or '').lower())
+        total = len(filtered)
         total_pages = max(1, ceil(total / per_page)) if total else 1
+        page = min(page, total_pages)
+        start = (page - 1) * per_page
+        users_page_items = filtered[start:start + per_page]
         common_data = get_common_template_data()
         return render_template_with_theme(
             'users.html',
-            users=users,
+            users=users_page_items,
             current_page=page,
             total_pages=total_pages,
             total_users=total,
             per_page=per_page,
             q=q,
+            status=status,
+            keys_state=keys_state,
+            balance_min=balance_min,
+            balance_max=balance_max,
             **common_data
         )
 
@@ -515,23 +564,143 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/users/table.partial')
     @login_required
     def users_table_partial():
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
+        page = max(1, request.args.get('page', 1, type=int) or 1)
+        per_page = request.args.get('per_page', 20, type=int) or 20
+        per_page = max(10, min(200, per_page))
         q = (request.args.get('q') or '').strip()
-        from shop_bot.data_manager.database import get_users_paginated
-        users, total = get_users_paginated(page=page, per_page=per_page, q=q or None)
+        status = (request.args.get('status') or 'all').strip().lower()
+        keys_state = (request.args.get('keys_state') or 'all').strip().lower()
+        try:
+            balance_min = request.args.get('balance_min', type=float)
+        except Exception:
+            balance_min = None
+        try:
+            balance_max = request.args.get('balance_max', type=float)
+        except Exception:
+            balance_max = None
+        tags_map = session.get('users_tags') or {}
+        users = []
+        try:
+            users = get_all_users() or []
+        except Exception:
+            users = []
+        from shop_bot.data_manager.database import get_total_keys_count_for_user
+        qn = q.lower()
+        filtered = []
         for user in users:
-            uid = user['telegram_id']
-            # Загружаем только количество ключей
-            from shop_bot.data_manager.database import get_total_keys_count_for_user
-            user['keys_count'] = get_total_keys_count_for_user(uid)
+            uid = user.get('telegram_id')
+            if uid is None:
+                continue
+            user = dict(user)
             try:
-                user['balance'] = get_balance(uid)
-                user['referrals'] = get_referrals_for_user(uid)
+                user['keys_count'] = int(get_total_keys_count_for_user(uid) or 0)
+            except Exception:
+                user['keys_count'] = 0
+            try:
+                user['balance'] = float(get_balance(uid) or 0)
+                user['referrals'] = get_referrals_for_user(uid) or []
             except Exception:
                 user['balance'] = 0.0
                 user['referrals'] = []
-        return render_template_with_theme('partials/users_table.html', users=users)
+            user['tag'] = tags_map.get(str(uid), '')
+            if qn:
+                hay = f"{user.get('telegram_id','')} {user.get('username') or ''} {user.get('tag') or ''}".lower()
+                if qn not in hay:
+                    continue
+            if status == 'active' and bool(user.get('is_banned')):
+                continue
+            if status == 'banned' and not bool(user.get('is_banned')):
+                continue
+            if keys_state == 'with' and int(user.get('keys_count') or 0) <= 0:
+                continue
+            if keys_state == 'without' and int(user.get('keys_count') or 0) > 0:
+                continue
+            b = float(user.get('balance') or 0)
+            if balance_min is not None and b < float(balance_min):
+                continue
+            if balance_max is not None and b > float(balance_max):
+                continue
+            filtered.append(user)
+        filtered.sort(key=lambda x: (x.get('username') or '').lower())
+        start = (page - 1) * per_page
+        users_page_items = filtered[start:start + per_page]
+        return render_template_with_theme('partials/users_table.html', users=users_page_items)
+
+    @flask_app.route('/users/bulk-action', methods=['POST'])
+    @login_required
+    def users_bulk_action_route():
+        action = (request.form.get('action') or '').strip().lower()
+        user_ids_raw = request.form.getlist('user_ids')
+        user_ids = []
+        for v in user_ids_raw:
+            try:
+                user_ids.append(int(v))
+            except Exception:
+                pass
+        user_ids = sorted(set(user_ids))
+        if not action or not user_ids:
+            return jsonify({"ok": False, "error": "invalid_input"}), 400
+
+        done = 0
+        errors = 0
+        if action == 'ban':
+            for uid in user_ids:
+                try:
+                    ban_user(uid)
+                    done += 1
+                except Exception:
+                    errors += 1
+        elif action == 'unban':
+            for uid in user_ids:
+                try:
+                    unban_user(uid)
+                    done += 1
+                except Exception:
+                    errors += 1
+        elif action == 'revoke':
+            for uid in user_ids:
+                try:
+                    keys_to_revoke = get_user_keys(uid) or []
+                    for key in keys_to_revoke:
+                        try:
+                            asyncio.run(xui_api.delete_client_on_host(key.get('host_name'), key.get('key_email')))
+                        except Exception:
+                            pass
+                    delete_user_keys(uid)
+                    done += 1
+                except Exception:
+                    errors += 1
+        elif action == 'mail':
+            text = (request.form.get('message') or '').strip()
+            if not text:
+                return jsonify({"ok": False, "error": "empty_message"}), 400
+            bot = _bot_controller.get_bot_instance()
+            if not bot:
+                return jsonify({"ok": False, "error": "bot_unavailable"}), 500
+            loop = current_app.config.get('EVENT_LOOP')
+            for uid in user_ids:
+                try:
+                    if loop and loop.is_running():
+                        asyncio.run_coroutine_threadsafe(bot.send_message(chat_id=uid, text=text), loop)
+                    else:
+                        asyncio.run(bot.send_message(chat_id=uid, text=text))
+                    done += 1
+                except Exception:
+                    errors += 1
+        elif action == 'tag':
+            tag = (request.form.get('tag') or '').strip()
+            tags_map = session.get('users_tags') or {}
+            for uid in user_ids:
+                if tag:
+                    tags_map[str(uid)] = tag
+                else:
+                    tags_map.pop(str(uid), None)
+            session['users_tags'] = tags_map
+            done = len(user_ids)
+        else:
+            return jsonify({"ok": False, "error": "unknown_action"}), 400
+
+        return jsonify({"ok": errors == 0, "done": done, "errors": errors, "total": len(user_ids)})
 
     # Partial: user keys table
     @flask_app.route('/users/<int:user_id>/keys.partial')
@@ -588,14 +757,76 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/admin/keys')
     @login_required
     def admin_keys_page():
+        q = (request.args.get('q') or '').strip()
+        host_filter = (request.args.get('host_name') or '').strip()
+        expiry_filter = (request.args.get('expiry') or 'all').strip().lower()
+        kind_filter = (request.args.get('kind') or 'all').strip().lower()
+        user_filter = (request.args.get('user_id') or '').strip()
+
+        def parse_expiry(v):
+            if not v:
+                return None
+            if isinstance(v, datetime):
+                return v
+            try:
+                return datetime.fromisoformat(str(v))
+            except Exception:
+                try:
+                    return datetime.strptime(str(v), '%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    return None
+
+        now = datetime.utcnow()
         keys = []
         try:
-            keys = get_all_keys()
+            keys = get_all_keys() or []
         except Exception:
             keys = []
+        filtered_keys = []
+        qn = q.lower()
+        for k in keys:
+            kk = dict(k)
+            exp_dt = parse_expiry(kk.get('expiry_date'))
+            kk['expiry_dt'] = exp_dt
+            status = 'none'
+            if exp_dt:
+                delta = (exp_dt - now).total_seconds()
+                if delta < 0:
+                    status = 'expired'
+                elif delta <= 24 * 3600:
+                    status = '24h'
+                elif delta <= 7 * 24 * 3600:
+                    status = '7d'
+                else:
+                    status = 'ok'
+            kk['expiry_status'] = status
+            is_gift = int(kk.get('user_id') or 0) == 0 or str(kk.get('key_email') or '').startswith('gift-')
+            kk['kind'] = 'gift' if is_gift else 'personal'
+
+            if qn:
+                hay = f"{kk.get('key_id','')} {kk.get('key_email') or ''} {kk.get('host_name') or ''} {kk.get('user_id') or ''}".lower()
+                if qn not in hay:
+                    continue
+            if host_filter and (kk.get('host_name') or '') != host_filter:
+                continue
+            if kind_filter in ('gift', 'personal') and kk['kind'] != kind_filter:
+                continue
+            if user_filter and str(kk.get('user_id') or '') != user_filter:
+                continue
+            if expiry_filter == 'today':
+                if not exp_dt or exp_dt.date() != now.date():
+                    continue
+            elif expiry_filter == '7d':
+                if not exp_dt or (exp_dt - now).total_seconds() < 0 or (exp_dt - now).total_seconds() > 7 * 24 * 3600:
+                    continue
+            elif expiry_filter == 'expired':
+                if not exp_dt or (exp_dt - now).total_seconds() >= 0:
+                    continue
+            filtered_keys.append(kk)
+
         hosts = []
         try:
-            hosts = get_all_hosts()
+            hosts = get_all_hosts() or []
         except Exception:
             hosts = []
         users = []
@@ -604,18 +835,211 @@ def create_webhook_app(bot_controller_instance):
         except Exception:
             users = []
         common_data = get_common_template_data()
-        return render_template_with_theme('admin_keys.html', keys=keys, hosts=hosts, users=users, **common_data)
+        return render_template_with_theme(
+            'admin_keys.html',
+            keys=filtered_keys,
+            hosts=hosts,
+            users=users,
+            q=q,
+            host_filter=host_filter,
+            expiry_filter=expiry_filter,
+            kind_filter=kind_filter,
+            user_filter=user_filter,
+            **common_data
+        )
 
     # Partial: admin keys table tbody
     @flask_app.route('/admin/keys/table.partial')
     @login_required
     def admin_keys_table_partial():
+        q = (request.args.get('q') or '').strip()
+        host_filter = (request.args.get('host_name') or '').strip()
+        expiry_filter = (request.args.get('expiry') or 'all').strip().lower()
+        kind_filter = (request.args.get('kind') or 'all').strip().lower()
+        user_filter = (request.args.get('user_id') or '').strip()
+
+        def parse_expiry(v):
+            if not v:
+                return None
+            if isinstance(v, datetime):
+                return v
+            try:
+                return datetime.fromisoformat(str(v))
+            except Exception:
+                try:
+                    return datetime.strptime(str(v), '%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    return None
+
+        now = datetime.utcnow()
         keys = []
         try:
-            keys = get_all_keys()
+            keys = get_all_keys() or []
         except Exception:
             keys = []
-        return render_template_with_theme('partials/admin_keys_table.html', keys=keys)
+        filtered_keys = []
+        qn = q.lower()
+        for k in keys:
+            kk = dict(k)
+            exp_dt = parse_expiry(kk.get('expiry_date'))
+            kk['expiry_dt'] = exp_dt
+            status = 'none'
+            if exp_dt:
+                delta = (exp_dt - now).total_seconds()
+                if delta < 0:
+                    status = 'expired'
+                elif delta <= 24 * 3600:
+                    status = '24h'
+                elif delta <= 7 * 24 * 3600:
+                    status = '7d'
+                else:
+                    status = 'ok'
+            kk['expiry_status'] = status
+            is_gift = int(kk.get('user_id') or 0) == 0 or str(kk.get('key_email') or '').startswith('gift-')
+            kk['kind'] = 'gift' if is_gift else 'personal'
+
+            if qn:
+                hay = f"{kk.get('key_id','')} {kk.get('key_email') or ''} {kk.get('host_name') or ''} {kk.get('user_id') or ''}".lower()
+                if qn not in hay:
+                    continue
+            if host_filter and (kk.get('host_name') or '') != host_filter:
+                continue
+            if kind_filter in ('gift', 'personal') and kk['kind'] != kind_filter:
+                continue
+            if user_filter and str(kk.get('user_id') or '') != user_filter:
+                continue
+            if expiry_filter == 'today':
+                if not exp_dt or exp_dt.date() != now.date():
+                    continue
+            elif expiry_filter == '7d':
+                if not exp_dt or (exp_dt - now).total_seconds() < 0 or (exp_dt - now).total_seconds() > 7 * 24 * 3600:
+                    continue
+            elif expiry_filter == 'expired':
+                if not exp_dt or (exp_dt - now).total_seconds() >= 0:
+                    continue
+            filtered_keys.append(kk)
+        return render_template_with_theme('partials/admin_keys_table.html', keys=filtered_keys)
+
+    @flask_app.route('/admin/keys/bulk-action', methods=['POST'])
+    @login_required
+    def admin_keys_bulk_action_route():
+        action = (request.form.get('action') or '').strip().lower()
+        key_ids_raw = request.form.getlist('key_ids')
+        key_ids = []
+        for v in key_ids_raw:
+            try:
+                key_ids.append(int(v))
+            except Exception:
+                pass
+        key_ids = sorted(set(key_ids))
+        done = 0
+        errors = 0
+
+        if action in ('delete_selected', 'extend_selected') and not key_ids:
+            return jsonify({"ok": False, "error": "no_keys_selected"}), 400
+
+        if action == 'delete_selected':
+            for key_id in key_ids:
+                try:
+                    key = get_key_by_id(key_id)
+                    if key:
+                        try:
+                            asyncio.run(xui_api.delete_client_on_host(key.get('host_name'), key.get('key_email')))
+                        except Exception:
+                            pass
+                    if delete_key_by_id(key_id):
+                        done += 1
+                    else:
+                        errors += 1
+                except Exception:
+                    errors += 1
+        elif action == 'extend_selected':
+            try:
+                delta_days = int(request.form.get('delta_days', '0'))
+            except Exception:
+                return jsonify({"ok": False, "error": "invalid_delta"}), 400
+            if delta_days == 0:
+                return jsonify({"ok": False, "error": "zero_delta"}), 400
+            for key_id in key_ids:
+                key = get_key_by_id(key_id)
+                if not key:
+                    errors += 1
+                    continue
+                try:
+                    cur_expiry = key.get('expiry_date')
+                    if isinstance(cur_expiry, str):
+                        try:
+                            exp_dt = datetime.fromisoformat(cur_expiry)
+                        except Exception:
+                            try:
+                                exp_dt = datetime.strptime(cur_expiry, '%Y-%m-%d %H:%M:%S')
+                            except Exception:
+                                exp_dt = datetime.utcnow()
+                    else:
+                        exp_dt = cur_expiry or datetime.utcnow()
+                    new_dt = exp_dt + timedelta(days=delta_days)
+                    new_ms = int(new_dt.timestamp() * 1000)
+                    result = asyncio.run(xui_api.create_or_update_key_on_host(
+                        host_name=key.get('host_name'),
+                        email=key.get('key_email'),
+                        expiry_timestamp_ms=new_ms
+                    ))
+                    if not result or not result.get('expiry_timestamp_ms'):
+                        errors += 1
+                        continue
+                    client_uuid = result.get('client_uuid') or key.get('xui_client_uuid') or ''
+                    update_key_info(key_id, client_uuid, int(result.get('expiry_timestamp_ms')))
+                    done += 1
+                except Exception:
+                    errors += 1
+        elif action == 'delete_expired_filtered':
+            q = (request.form.get('q') or '').strip().lower()
+            host_filter = (request.form.get('host_name') or '').strip()
+            kind_filter = (request.form.get('kind') or 'all').strip().lower()
+            user_filter = (request.form.get('user_id') or '').strip()
+            now = datetime.utcnow()
+            try:
+                keys = get_all_keys() or []
+            except Exception:
+                keys = []
+            for k in keys:
+                try:
+                    exp_raw = k.get('expiry_date')
+                    try:
+                        exp_dt = datetime.fromisoformat(str(exp_raw))
+                    except Exception:
+                        try:
+                            exp_dt = datetime.strptime(str(exp_raw), '%Y-%m-%d %H:%M:%S')
+                        except Exception:
+                            exp_dt = None
+                    if not exp_dt or exp_dt >= now:
+                        continue
+                    is_gift = int(k.get('user_id') or 0) == 0 or str(k.get('key_email') or '').startswith('gift-')
+                    kind = 'gift' if is_gift else 'personal'
+                    if q:
+                        hay = f"{k.get('key_id','')} {k.get('key_email') or ''} {k.get('host_name') or ''} {k.get('user_id') or ''}".lower()
+                        if q not in hay:
+                            continue
+                    if host_filter and (k.get('host_name') or '') != host_filter:
+                        continue
+                    if kind_filter in ('gift', 'personal') and kind_filter != kind:
+                        continue
+                    if user_filter and str(k.get('user_id') or '') != user_filter:
+                        continue
+                    try:
+                        asyncio.run(xui_api.delete_client_on_host(k.get('host_name'), k.get('key_email')))
+                    except Exception:
+                        pass
+                    if delete_key_by_id(k.get('key_id')):
+                        done += 1
+                    else:
+                        errors += 1
+                except Exception:
+                    errors += 1
+        else:
+            return jsonify({"ok": False, "error": "unknown_action"}), 400
+
+        return jsonify({"ok": errors == 0, "done": done, "errors": errors, "total": len(key_ids)})
 
     @flask_app.route('/admin/hosts/<host_name>/plans')
     @login_required

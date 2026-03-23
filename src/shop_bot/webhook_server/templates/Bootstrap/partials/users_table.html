@@ -1,9 +1,15 @@
 {% for user in users %}
 <tr>
   <td class="py-2">
+    <input type="checkbox" class="form-check-input users-row-select" value="{{ user.telegram_id }}">
+  </td>
+  <td class="py-2">
     <div class="d-flex flex-column">
       <div class="fw-semibold">@{{ user.username or 'N/A' }}</div>
       <div class="text-muted small">{{ user.telegram_id }}</div>
+      {% if user.tag %}
+      <div><span class="badge text-bg-info mt-1">{{ user.tag }}</span></div>
+      {% endif %}
     </div>
   </td>
   <td class="py-2">
@@ -24,72 +30,64 @@
     <div class="fw-semibold">{{ '%.2f'|format(user.balance or 0) }} ₽</div>
   </td>
   <td class="text-end py-2">
-    <div class="dropdown">
-      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-        Действия
+    <div class="d-flex justify-content-end align-items-center gap-1">
+      <button type="button" class="btn btn-sm btn-outline-success btn-user-balance-sign"
+              data-uid="{{ user.telegram_id }}"
+              data-username="{{ user.username or 'N/A' }}"
+              data-balance="{{ '%.2f'|format(user.balance or 0) }}"
+              data-referrals='{{ user.referrals|tojson }}'
+              data-sign="+"
+              title="Пополнить баланс">
+        <i class="bi bi-plus-lg"></i>
       </button>
-      <div class="dropdown-menu dropdown-menu-end">
-        <a class="dropdown-item" href="{{ url_for('admin_keys_page') }}?user_id={{ user.telegram_id }}">
-          <i class="bi bi-key me-2 text-primary"></i>Выдать ключ
-        </a>
-        <button type="button" class="dropdown-item btn-user-balance-sign"
-                data-uid="{{ user.telegram_id }}"
-                data-username="{{ user.username or 'N/A' }}"
-                data-balance="{{ '%.2f'|format(user.balance or 0) }}"
-                data-referrals='{{ user.referrals|tojson }}'
-                data-sign="+">
-          <i class="bi bi-plus-lg me-2 text-success"></i>Пополнить баланс
+      <button type="button" class="btn btn-sm btn-outline-primary"
+              data-toggle="keys"
+              data-user="{{ user.telegram_id }}"
+              data-username="{{ user.username or '' }}"
+              data-keys-url="{{ url_for('user_keys_table_partial', user_id=user.telegram_id) }}"
+              title="Ключи пользователя">
+        <i class="bi bi-key"></i>
+      </button>
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          Ещё
         </button>
-        <button type="button" class="dropdown-item btn-user-balance-sign"
-                data-uid="{{ user.telegram_id }}"
-                data-username="{{ user.username or 'N/A' }}"
-                data-balance="{{ '%.2f'|format(user.balance or 0) }}"
-                data-referrals='{{ user.referrals|tojson }}'
-                data-sign="-">
-          <i class="bi bi-dash-lg me-2 text-danger"></i>Списать баланс
-        </button>
-        <button type="button" class="dropdown-item" data-toggle="keys" data-user="{{ user.telegram_id }}" data-keys-url="{{ url_for('user_keys_table_partial', user_id=user.telegram_id) }}">
-          <i class="bi bi-key-fill me-2 text-secondary"></i>Показать ключи
-        </button>
-        <div class="dropdown-divider"></div>
-        {% if user.is_banned %}
-        <form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <button type="submit" class="dropdown-item text-success">
-            <i class="bi bi-check-circle me-2"></i>Разбанить
+        <div class="dropdown-menu dropdown-menu-end">
+          <a class="dropdown-item" href="{{ url_for('admin_keys_page') }}?user_id={{ user.telegram_id }}">
+            <i class="bi bi-key me-2 text-primary"></i>Выдать ключ
+          </a>
+          <button type="button" class="dropdown-item btn-user-balance-sign"
+                  data-uid="{{ user.telegram_id }}"
+                  data-username="{{ user.username or 'N/A' }}"
+                  data-balance="{{ '%.2f'|format(user.balance or 0) }}"
+                  data-referrals='{{ user.referrals|tojson }}'
+                  data-sign="-">
+            <i class="bi bi-dash-lg me-2 text-danger"></i>Списать баланс
           </button>
-        </form>
-        {% else %}
-        <form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Вы уверены, что хотите забанить этого пользователя?">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <button type="submit" class="dropdown-item text-warning">
-            <i class="bi bi-slash-circle me-2"></i>Забанить
-          </button>
-        </form>
-        {% endif %}
-        {% if user.keys_count and user.keys_count > 0 %}
-        <form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя. Продолжить?">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-          <button type="submit" class="dropdown-item text-danger">
-            <i class="bi bi-trash3 me-2"></i>Отозвать все ключи
-          </button>
-        </form>
-        {% endif %}
-      </div>
-    </div>
-  </td>
-</tr>
-<tr class="keys-row" id="keys-{{ user.telegram_id }}" style="display:none;">
-  <td colspan="5" class="bg-light-subtle">
-    <div class="p-2 border rounded bg-white">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <strong>Ключи пользователя</strong>
-        <button type="button" class="btn-close" onclick="document.getElementById('keys-{{ user.telegram_id }}').style.display='none';" aria-label="Close"></button>
-      </div>
-      <div class="keys-container">
-        <div class="p-2 text-center text-muted">
-          <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-          Загрузка ключей...
+          <div class="dropdown-divider"></div>
+          {% if user.is_banned %}
+          <form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="dropdown-item text-success">
+              <i class="bi bi-check-circle me-2"></i>Разбанить
+            </button>
+          </form>
+          {% else %}
+          <form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Вы уверены, что хотите забанить этого пользователя?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="dropdown-item text-warning">
+              <i class="bi bi-slash-circle me-2"></i>Забанить
+            </button>
+          </form>
+          {% endif %}
+          {% if user.keys_count and user.keys_count > 0 %}
+          <form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя. Продолжить?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="dropdown-item text-danger">
+              <i class="bi bi-trash3 me-2"></i>Отозвать все ключи
+            </button>
+          </form>
+          {% endif %}
         </div>
       </div>
     </div>

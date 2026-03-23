@@ -13,13 +13,47 @@
           <span class="input-group-text"><i class="bi bi-search"></i></span>
           <input id="users-search" type="text" class="form-control" placeholder="Поиск..." value="{{ q or '' }}">
         </div>
+        <select id="users-status" class="form-select">
+          <option value="all" {% if (status or 'all') == 'all' %}selected{% endif %}>Все</option>
+          <option value="active" {% if status == 'active' %}selected{% endif %}>Активные</option>
+          <option value="banned" {% if status == 'banned' %}selected{% endif %}>Забаненные</option>
+        </select>
+        <select id="users-keys-state" class="form-select">
+          <option value="all" {% if (keys_state or 'all') == 'all' %}selected{% endif %}>Ключи: все</option>
+          <option value="with" {% if keys_state == 'with' %}selected{% endif %}>С ключами</option>
+          <option value="without" {% if keys_state == 'without' %}selected{% endif %}>Без ключей</option>
+        </select>
+        <input id="users-balance-min" type="number" step="0.01" class="form-control" placeholder="Баланс от" value="{{ balance_min if balance_min is not none else '' }}">
+        <input id="users-balance-max" type="number" step="0.01" class="form-control" placeholder="Баланс до" value="{{ balance_max if balance_max is not none else '' }}">
         <select id="users-per-page" class="form-select">
           <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
           <option value="20" {% if per_page == 20 or not per_page %}selected{% endif %}>20</option>
           <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
           <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
         </select>
+        <button id="users-reset-filters" class="btn btn-outline-secondary" type="button"><i class="bi bi-x-circle me-1"></i>Сброс</button>
       </div>
+    </div>
+  </div>
+
+  <div class="card mb-2">
+    <div class="card-body py-2">
+      <form id="users-bulk-form" class="d-flex flex-wrap align-items-center gap-2" method="post" action="{{ url_for('users_bulk_action_route') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <span class="small text-muted me-1">Массовые действия:</span>
+        <select id="users-bulk-action" name="action" class="form-select form-select-sm" style="max-width: 200px;">
+          <option value="">Выберите действие</option>
+          <option value="ban">Забанить</option>
+          <option value="unban">Разбанить</option>
+          <option value="revoke">Отозвать все ключи</option>
+          <option value="mail">Рассылка сообщения</option>
+          <option value="tag">Поставить тег</option>
+        </select>
+        <input id="users-bulk-message" name="message" class="form-control form-control-sm d-none" placeholder="Текст рассылки" style="min-width: 240px;">
+        <input id="users-bulk-tag" name="tag" class="form-control form-control-sm d-none" placeholder="Тег (например VIP)" style="max-width: 180px;">
+        <button id="users-bulk-apply" class="btn btn-sm btn-primary" type="submit" disabled>Применить</button>
+        <span id="users-selected-count" class="small text-muted ms-auto">Выбрано: 0</span>
+      </form>
     </div>
   </div>
 
@@ -53,6 +87,9 @@
       <table id="users-table" class="table table-sm table-hover align-middle mb-0">
         <thead>
           <tr>
+            <th class="bg-body sticky-top" style="width: 36px;">
+              <input id="users-select-all" type="checkbox" class="form-check-input">
+            </th>
             <th class="bg-body sticky-top">Пользователь</th>
             <th class="bg-body sticky-top">Статус</th>
             <th class="bg-body sticky-top">Ключи</th>
@@ -61,7 +98,7 @@
           </tr>
         </thead>
         <tbody id="users-tbody"
-               data-fetch-url="{{ url_for('users_table_partial', page=current_page or 1, per_page=per_page or 20, q=q or '') }}"
+               data-fetch-url="{{ url_for('users_table_partial', page=current_page or 1, per_page=per_page or 20, q=q or '', status=status or 'all', keys_state=keys_state or 'all', balance_min=balance_min if balance_min is not none else '', balance_max=balance_max if balance_max is not none else '') }}"
                data-fetch-interval="10000">
           {% include 'Bootstrap/partials/users_table.html' %}
         </tbody>
@@ -76,43 +113,68 @@
         {% set cp = (current_page or 1) %}
         {% set tp = (total_pages or 1) %}
         <li class="page-item {% if cp <= 1 %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('users_page', page=cp-1, per_page=per_page or 20, q=q or '') }}" aria-label="Предыдущая">&laquo;</a>
+          <a class="page-link" href="{{ url_for('users_page', page=cp-1, per_page=per_page or 20, q=q or '', status=status or 'all', keys_state=keys_state or 'all', balance_min=balance_min if balance_min is not none else '', balance_max=balance_max if balance_max is not none else '') }}" aria-label="Предыдущая">&laquo;</a>
         </li>
         {% set start = 1 if tp <= 7 else (cp - 2 if cp - 2 > 1 else 1) %}
         {% set end = tp if tp <= 7 else (cp + 2 if cp + 2 < tp else tp) %}
         {% if start > 1 %}
-          <li class="page-item"><a class="page-link" href="{{ url_for('users_page', page=1, per_page=per_page or 20, q=q or '') }}">1</a></li>
+          <li class="page-item"><a class="page-link" href="{{ url_for('users_page', page=1, per_page=per_page or 20, q=q or '', status=status or 'all', keys_state=keys_state or 'all', balance_min=balance_min if balance_min is not none else '', balance_max=balance_max if balance_max is not none else '') }}">1</a></li>
           {% if start > 2 %}
             <li class="page-item disabled"><span class="page-link">…</span></li>
           {% endif %}
         {% endif %}
         {% for p in range(start, end + 1) %}
           <li class="page-item {% if p == cp %}active{% endif %}">
-            <a class="page-link" href="{{ url_for('users_page', page=p, per_page=per_page or 20, q=q or '') }}">{{ p }}</a>
+            <a class="page-link" href="{{ url_for('users_page', page=p, per_page=per_page or 20, q=q or '', status=status or 'all', keys_state=keys_state or 'all', balance_min=balance_min if balance_min is not none else '', balance_max=balance_max if balance_max is not none else '') }}">{{ p }}</a>
           </li>
         {% endfor %}
         {% if end < tp %}
           {% if end < tp - 1 %}
             <li class="page-item disabled"><span class="page-link">…</span></li>
           {% endif %}
-          <li class="page-item"><a class="page-link" href="{{ url_for('users_page', page=tp, per_page=per_page or 20, q=q or '') }}">{{ tp }}</a></li>
+          <li class="page-item"><a class="page-link" href="{{ url_for('users_page', page=tp, per_page=per_page or 20, q=q or '', status=status or 'all', keys_state=keys_state or 'all', balance_min=balance_min if balance_min is not none else '', balance_max=balance_max if balance_max is not none else '') }}">{{ tp }}</a></li>
         {% endif %}
         <li class="page-item {% if cp >= tp %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('users_page', page=cp+1, per_page=per_page or 20, q=q or '') }}" aria-label="Следующая">&raquo;</a>
+          <a class="page-link" href="{{ url_for('users_page', page=cp+1, per_page=per_page or 20, q=q or '', status=status or 'all', keys_state=keys_state or 'all', balance_min=balance_min if balance_min is not none else '', balance_max=balance_max if balance_max is not none else '') }}" aria-label="Следующая">&raquo;</a>
         </li>
       </ul>
     </nav>
   </div>
 
   <input type="hidden" id="balance-url-template" value="{{ url_for('adjust_balance_route', user_id=0) }}">
+
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="userKeysOffcanvas" aria-labelledby="userKeysOffcanvasLabel">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="userKeysOffcanvasLabel">Ключи пользователя</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div id="user-keys-content" class="text-muted">Выберите пользователя</div>
+    </div>
+  </div>
 </div>
 
 <script>
   (function(){
     const input = document.getElementById('users-search');
     const perPageSel = document.getElementById('users-per-page');
+    const statusSel = document.getElementById('users-status');
+    const keysStateSel = document.getElementById('users-keys-state');
+    const balMinInput = document.getElementById('users-balance-min');
+    const balMaxInput = document.getElementById('users-balance-max');
+    const resetFiltersBtn = document.getElementById('users-reset-filters');
     const tbody = document.getElementById('users-tbody');
     const table = document.getElementById('users-table');
+    const bulkForm = document.getElementById('users-bulk-form');
+    const bulkAction = document.getElementById('users-bulk-action');
+    const bulkMessage = document.getElementById('users-bulk-message');
+    const bulkTag = document.getElementById('users-bulk-tag');
+    const bulkApplyBtn = document.getElementById('users-bulk-apply');
+    const selectedCountEl = document.getElementById('users-selected-count');
+    const selectAllCb = document.getElementById('users-select-all');
+    const keysOffcanvasEl = document.getElementById('userKeysOffcanvas');
+    const userKeysContent = document.getElementById('user-keys-content');
+    const userKeysOffcanvas = keysOffcanvasEl ? new bootstrap.Offcanvas(keysOffcanvasEl) : null;
     if (!input || !perPageSel || !tbody || !table) return;
 
     function updateQuery(next) {
@@ -125,45 +187,54 @@
       window.location.search = params.toString();
     }
 
-    function getKeysRowByUid(uid){ return document.getElementById('keys-' + uid); }
-    async function fetchKeysForUid(uid){
-      const row = getKeysRowByUid(uid);
-      if (!row) return;
-      const container = row.querySelector('.keys-container');
-      if (!container) return;
-      if (!container.querySelector('.spinner-border')) return;
-      const btn = table.querySelector(`[data-toggle="keys"][data-user="${uid}"]`);
-      const url = btn?.getAttribute('data-keys-url');
+    function collectFilterQuery() {
+      return {
+        q: input.value.trim(),
+        page: 1,
+        per_page: perPageSel.value,
+        status: statusSel?.value || 'all',
+        keys_state: keysStateSel?.value || 'all',
+        balance_min: balMinInput?.value || '',
+        balance_max: balMaxInput?.value || ''
+      };
+    }
+
+    async function openKeysForUid(uid, url, username) {
+      if (!userKeysContent) return;
       if (!url) return;
+      userKeysContent.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <strong>${username ? '@' + username : 'Пользователь'} (${uid})</strong>
+        </div>
+        <div class="text-center p-3 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Загрузка...</div>
+      `;
+      userKeysOffcanvas?.show();
       try {
         const resp = await fetch(url, { headers: { 'Accept': 'text/html' }, cache: 'no-store', credentials: 'same-origin' });
         if (!resp.ok) throw new Error('Failed to fetch');
-        container.innerHTML = await resp.text();
+        userKeysContent.innerHTML = await resp.text();
       } catch(e) {
-        container.innerHTML = `<div class="p-3 text-danger small">Ошибка загрузки: ${e.message}</div>`;
+        userKeysContent.innerHTML = `<div class="p-3 text-danger small">Ошибка загрузки: ${e.message}</div>`;
       }
     }
 
-    function openKeysForUid(uid){
-      const row = getKeysRowByUid(uid);
-      if (!row) return;
-      row.style.display = '';
-      fetchKeysForUid(uid);
+    function selectedUserIds() {
+      return Array.from(tbody.querySelectorAll('.users-row-select:checked')).map(cb => cb.value);
     }
 
-    function closeKeysForUid(uid){
-      const row = getKeysRowByUid(uid);
-      if (!row) return;
-      row.style.display = 'none';
+    function updateBulkState() {
+      const ids = selectedUserIds();
+      if (selectedCountEl) selectedCountEl.textContent = `Выбрано: ${ids.length}`;
+      if (bulkApplyBtn) bulkApplyBtn.disabled = ids.length === 0 || !(bulkAction?.value);
     }
 
     tbody.addEventListener('click', (e) => {
       const btnKey = e.target.closest('[data-toggle="keys"]');
       if (btnKey) {
         const uid = btnKey.getAttribute('data-user');
-        const row = getKeysRowByUid(uid);
-        if (row && row.style.display === 'none') openKeysForUid(uid);
-        else closeKeysForUid(uid);
+        const url = btnKey.getAttribute('data-keys-url');
+        const username = btnKey.getAttribute('data-username') || '';
+        openKeysForUid(uid, url, username);
         return;
       }
 
@@ -196,12 +267,56 @@
     input.addEventListener('input', () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        updateQuery({ q: input.value.trim(), page: 1, per_page: perPageSel.value });
+        updateQuery(collectFilterQuery());
       }, 400);
     });
 
     perPageSel.addEventListener('change', () => {
-      updateQuery({ per_page: perPageSel.value, page: 1, q: input.value.trim() });
+      updateQuery(collectFilterQuery());
+    });
+    statusSel?.addEventListener('change', () => updateQuery(collectFilterQuery()));
+    keysStateSel?.addEventListener('change', () => updateQuery(collectFilterQuery()));
+    balMinInput?.addEventListener('change', () => updateQuery(collectFilterQuery()));
+    balMaxInput?.addEventListener('change', () => updateQuery(collectFilterQuery()));
+    resetFiltersBtn?.addEventListener('click', () => {
+      updateQuery({ q: '', page: 1, per_page: '20', status: 'all', keys_state: 'all', balance_min: '', balance_max: '' });
+    });
+
+    selectAllCb?.addEventListener('change', () => {
+      const checked = !!selectAllCb.checked;
+      tbody.querySelectorAll('.users-row-select').forEach(cb => { cb.checked = checked; });
+      updateBulkState();
+    });
+    tbody.addEventListener('change', (e) => {
+      if (e.target.classList.contains('users-row-select')) updateBulkState();
+    });
+
+    bulkAction?.addEventListener('change', () => {
+      const act = bulkAction.value;
+      bulkMessage?.classList.toggle('d-none', act !== 'mail');
+      bulkTag?.classList.toggle('d-none', act !== 'tag');
+      updateBulkState();
+    });
+
+    bulkForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const ids = selectedUserIds();
+      const act = bulkAction?.value || '';
+      if (!ids.length || !act) return;
+      const fd = new FormData(bulkForm);
+      fd.delete('user_ids');
+      ids.forEach(id => fd.append('user_ids', id));
+      bulkApplyBtn.disabled = true;
+      try {
+        const resp = await fetch(bulkForm.action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || 'bulk_failed');
+        window.location.reload();
+      } catch (err) {
+        alert('Ошибка bulk-действия: ' + (err.message || err));
+      } finally {
+        bulkApplyBtn.disabled = false;
+      }
     });
 
     document.addEventListener('submit', (e) => {
@@ -217,6 +332,7 @@
         input.focus();
       }
     });
+    updateBulkState();
   })();
 </script>
 {% endblock %}
