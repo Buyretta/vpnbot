@@ -625,6 +625,15 @@ def get_support_router() -> Router:
                     media=media_info,
                     media_group_id=media_group_id
                 )
+                # Notify web panel via SocketIO
+                emit_ticket_update(int(ticket['ticket_id']), "ticket_message", {
+                    "ticket_id": int(ticket['ticket_id']),
+                    "sender": "admin",
+                    "content": content,
+                    "media": media_info,
+                    "media_group_id": media_group_id,
+                    "created_at": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                })
             header = await bot.send_message(
                 chat_id=user_id,
                 text=f"💬 Ответ поддержки по тикету #{ticket['ticket_id']}"
