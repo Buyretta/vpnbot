@@ -247,19 +247,16 @@ def get_support_router() -> Router:
                     f"У вас уже есть открытый тикет #{existing['ticket_id']}. Пожалуйста, продолжайте переписку в этом тикете. Новый тикет можно создать после его закрытия."
                 )
             else:
-                await message.answer("📝 Кратко опишите тему обращения (например, 'Проблема с подключением')")
+                await message.answer(
+                    "Выберите тему обращения:",
+                    reply_markup=_topic_selection_kb()
+                )
                 await state.set_state(SupportDialog.waiting_for_subject)
             return
         support_text = get_setting("support_text") or "Раздел поддержки. Вы можете создать обращение или открыть существующее."
         await message.answer(
             support_text,
-            reply_markup=types.ReplyKeyboardMarkup(
-                keyboard=[
-                    [types.KeyboardButton(text="✍️ Новое обращение")],
-                    [types.KeyboardButton(text="📨 Мои обращения")],
-                ],
-                resize_keyboard=True
-            ),
+            reply_markup=_user_main_reply_kb()
         )
 
     @router.callback_query(F.data == "support_new_ticket")
@@ -271,14 +268,36 @@ def get_support_router() -> Router:
                 f"У вас уже есть открытый тикет #{existing['ticket_id']}. Продолжайте переписку в нём. Новый тикет можно создать после закрытия текущего."
             )
         else:
-            await callback.message.edit_text("📝 Кратко опишите тему обращения (например, 'Проблема с подключением')")
+            await callback.message.edit_text(
+                "Выберите тему обращения:",
+                reply_markup=_topic_selection_kb()
+            )
             await state.set_state(SupportDialog.waiting_for_subject)
+
+    @router.callback_query(F.data.startswith("topic_"))
+    async def topic_selected_handler(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        topic_key = callback.data.replace("topic_", "")
+        
+        if topic_key == "other":
+            await callback.message.edit_text("Опишите тему обращения своими словами:")
+            await state.set_state(SupportDialog.waiting_for_subject)
+        else:
+            topic_name = dict(SUPPORT_TOPICS).get(topic_key, topic_key)
+            subject = f"[{topic_key}] {topic_name}"
+            await state.update_data(subject=subject)
+            await callback.message.edit_text(
+                f"Выбрана тема: {topic_name}\n\n"
+                "Теперь опишите проблему максимально подробно одним сообщением (можно прикрепить фото, видео или документы)."
+            )
+            await state.set_state(SupportDialog.waiting_for_message)
 
     @router.message(SupportDialog.waiting_for_subject, F.chat.type == "private")
     async def support_subject_received(message: types.Message, state: FSMContext):
-        subject = (message.text or "").strip()
+        custom_subject = (message.text or "").strip()
+        subject = f"[other] {custom_subject}"
         await state.update_data(subject=subject)
-        await message.answer("✉️ Опишите проблему максимально подробно одним сообщением.")
+        await message.answer("Опишите проблему максимально подробно одним сообщением (можно прикрепить фото, видео или документы).")
         await state.set_state(SupportDialog.waiting_for_message)
 
     @router.message(SupportDialog.waiting_for_message, F.chat.type == "private")
