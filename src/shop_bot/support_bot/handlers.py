@@ -49,13 +49,13 @@ def emit_ticket_update(ticket_id: int, event_name: str, payload: dict):
     """
     global _socket_emit_queue, _socketio_instance
     
-    logger.debug(f"emit_ticket_update: {event_name} for ticket {ticket_id}")
+    logger.info(f"emit_ticket_update: {event_name} for ticket {ticket_id}")
     
     # Prefer queue for cross-thread safety
     if _socket_emit_queue is not None:
         try:
             _socket_emit_queue(event_name, payload, room=f"ticket_{int(ticket_id)}")
-            logger.debug(f"emit_ticket_update: queued {event_name} for ticket {ticket_id}")
+            logger.info(f"emit_ticket_update: queued {event_name} for ticket {ticket_id}")
             return
         except Exception as e:
             logger.warning(f"Queue emit failed, trying direct: {e}")
@@ -64,7 +64,7 @@ def emit_ticket_update(ticket_id: int, event_name: str, payload: dict):
     if _socketio_instance is not None:
         try:
             _socketio_instance.emit(event_name, payload, room=f"ticket_{int(ticket_id)}")
-            logger.debug(f"emit_ticket_update: direct emit {event_name} for ticket {ticket_id}")
+            logger.info(f"emit_ticket_update: direct emit {event_name} for ticket {ticket_id}")
         except Exception as e:
             logger.warning(f"Не удалось отправить SocketIO событие: {e}")
     else:

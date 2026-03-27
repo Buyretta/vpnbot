@@ -139,10 +139,10 @@ def create_webhook_app(bot_controller_instance):
                 if item is None:
                     continue
                 event_name, payload, room = item
-                logger.debug(f"Socket emit worker: processing {event_name} to room {room}")
+                logger.info(f"Socket emit worker: processing {event_name} to room {room}")
                 try:
                     socketio.emit(event_name, payload, room=room)
-                    logger.debug(f"Socket emit worker: successfully sent {event_name}")
+                    logger.info(f"Socket emit worker: successfully sent {event_name}")
                 except Exception as e:
                     logger.warning(f"Socket emit error: {e}")
             except queue.Empty:
@@ -156,7 +156,7 @@ def create_webhook_app(bot_controller_instance):
     
     def queue_socket_emit(event_name: str, payload: dict, room: str | None = None):
         """Queue a socket emit for cross-thread safety."""
-        logger.debug(f"Queueing socket emit: {event_name} to room {room}")
+        logger.info(f"Queueing socket emit: {event_name} to room {room}")
         _socket_emit_queue.put((event_name, payload, room))
     
     # Expose queue function for support bot handlers
@@ -1897,8 +1897,11 @@ def create_webhook_app(bot_controller_instance):
         if not media_str:
             return None
         try:
-            return json.loads(media_str)
-        except (json.JSONDecodeError, TypeError):
+            media_data = json.loads(media_str)
+            logger.debug(f"Parsed media: {media_data}")
+            return media_data
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.warning(f"Failed to parse media JSON: {e}, raw: {media_str}")
             return None
 
     @flask_app.route('/support/<int:ticket_id>/messages.json')
@@ -3041,16 +3044,20 @@ def create_webhook_app(bot_controller_instance):
     def telegram_file_proxy(file_id: str):
         """Proxy to download and serve Telegram files."""
         try:
+            logger.info(f"Requesting Telegram file: {file_id}")
             bot = _support_bot_controller.get_bot_instance()
             if not bot:
+                logger.error("Bot instance not available")
                 return jsonify({"error": "bot_not_available"}), 503
             
             loop = current_app.config.get('EVENT_LOOP')
             if not loop or not loop.is_running():
+                logger.error("Event loop not running")
                 return jsonify({"error": "event_loop_not_running"}), 503
             
             # Get file info from Telegram
             import asyncio
+            logger.info(f"Getting file info for {file_id}")
             future = asyncio.run_coroutine_threadsafe(
                 bot.get_file(file_id),
                 loop
@@ -3058,9 +3065,13 @@ def create_webhook_app(bot_controller_instance):
             file_obj = future.result(timeout=10)
             
             if not file_obj or not file_obj.file_path:
+                logger.error(f"File not found: {file_id}")
                 return jsonify({"error": "file_not_found"}), 404
             
+            logger.info(f"File info: path={file_obj.file_path}, size={file_obj.file_size}")
+            
             # Download file content
+            logger.info(f"Downloading file content for {file_id}")
             future2 = asyncio.run_coroutine_threadsafe(
                 bot.download_file(file_obj.file_path),
                 loop
@@ -3068,15 +3079,29 @@ def create_webhook_app(bot_controller_instance):
             file_content = future2.result(timeout=30)
             
             if not file_content:
+                logger.error(f"Failed to download file content: {file_id}")
                 return jsonify({"error": "download_failed"}), 500
+            
+            logger.info(f"Downloaded file content type: {type(file_content)}, length: {len(file_content)}")
             
             # Determine content type based on file extension
             import mimetypes
             content_type = mimetypes.guess_type(file_obj.file_path)[0] or 'application/octet-stream'
+            logger.info(f"Content type: {content_type}")
             
+            # Flask send_file works with bytes directly or file-like objects
+            # If file_content is bytes, wrap it in BytesIO
             from io import BytesIO
+            if isinstance(file_content, bytes):
+                file_io = BytesIO(file_content)
+                logger.info(f"Wrapped bytes in BytesIO")
+            else:
+                file_io = file_content  # Already a file-like object
+                logger.info(f"Using file_io directly: {type(file_io)}")
+            
+            logger.info(f"Serving file: {file_obj.file_path.split('/')[-1]}")
             return send_file(
-                BytesIO(file_content),
+                file_io,
                 mimetype=content_type,
                 as_attachment=False,
                 download_name=file_obj.file_path.split('/')[-1]
