@@ -272,10 +272,15 @@
     }
 
     function renderMedia(media, mediaGroupId) {
-      if (!media) return '';
+      if (!media) {
+        console.log('renderMedia: no media data');
+        return '';
+      }
       const type = media.type;
       const fileId = media.file_id;
       const groupAttr = mediaGroupId ? `data-media-group="${esc(mediaGroupId)}"` : '';
+      
+      console.log('renderMedia:', { type, fileId, media });
       
       if (type === 'photo') {
         return `<div class="support-media photo" ${groupAttr}>

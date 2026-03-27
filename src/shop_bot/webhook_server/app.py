@@ -1934,6 +1934,12 @@ def create_webhook_app(bot_controller_instance):
         if not ticket:
             return jsonify({"ok": False, "error": "not_found"}), 404
         messages = get_ticket_messages(ticket_id) or []
+        
+        # Debug: log raw media data
+        for i, m in enumerate(messages):
+            if m.get('media'):
+                logger.debug(f"Message {i} raw media: {m.get('media')}")
+        
         return jsonify({
             "ok": True,
             "ticket": {
