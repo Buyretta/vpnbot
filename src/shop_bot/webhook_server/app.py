@@ -156,6 +156,7 @@ def create_webhook_app(bot_controller_instance):
     
     def queue_socket_emit(event_name: str, payload: dict, room: str | None = None):
         """Queue a socket emit for cross-thread safety."""
+        logger.debug(f"Queueing socket emit: {event_name} to room {room}")
         _socket_emit_queue.put((event_name, payload, room))
     
     # Expose queue function for support bot handlers
