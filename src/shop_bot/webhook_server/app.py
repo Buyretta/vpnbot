@@ -113,8 +113,24 @@ def create_webhook_app(bot_controller_instance):
         template_folder='templates',
         static_folder='static'
     )
-    socketio = SocketIO(flask_app, cors_allowed_origins="*", async_mode="threading", manage_session=False)
+    # Use threading mode with proper WebSocket handling
+    socketio = SocketIO(
+        flask_app, 
+        cors_allowed_origins="*", 
+        async_mode="threading",
+        manage_session=False,
+        ping_timeout=10,
+        ping_interval=5
+    )
     flask_app.extensions['socketio'] = socketio
+    
+    # Initialize socketio for support bot handlers
+    try:
+        from shop_bot.support_bot.handlers import set_socketio_instance
+        set_socketio_instance(socketio)
+        logger.info("SocketIO инициализирован для support bot handlers")
+    except Exception as e:
+        logger.warning(f"Не удалось инициализировать SocketIO для support bot: {e}")
     
     # SECRET_KEY из окружения или сгенерированный на лету (без хардкода)
     flask_app.config['SECRET_KEY'] = os.getenv('SHOPBOT_SECRET_KEY') or secrets.token_hex(32)
@@ -3012,6 +3028,88 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.error(f"Error serving Telegram file {file_id}: {e}")
             return jsonify({"error": "internal_error"}), 500
+
+    @flask_app.route('/support/<int:ticket_id>/upload-media', methods=['POST'])
+    @login_required
+    def support_upload_media(ticket_id: int):
+        """Upload media file for support ticket and send to user via Telegram."""
+        try:
+            ticket = get_ticket(ticket_id)
+            if not ticket:
+                return jsonify({"ok": False, "error": "not_found"}), 404
+            
+            if (ticket.get('status') or '').lower() != 'open':
+                return jsonify({"ok": False, "error": "ticket_closed"}), 400
+            
+            file = request.files.get('file')
+            if not file:
+                return jsonify({"ok": False, "error": "no_file"}), 400
+            
+            bot = _support_bot_controller.get_bot_instance()
+            loop = current_app.config.get('EVENT_LOOP')
+            
+            if not bot or not loop or not loop.is_running():
+                return jsonify({"ok": False, "error": "bot_not_available"}), 503
+            
+            # Read file content
+            file_content = file.read()
+            file_name = file.filename or 'file'
+            
+            # Determine file type
+            import mimetypes
+            content_type = mimetypes.guess_type(file_name)[0] or 'application/octet-stream'
+            
+            # Send file to user via Telegram
+            import asyncio
+            user_id = ticket.get('user_id')
+            
+            try:
+                # Send as document
+                from aiogram.types import BufferedInputFile
+                input_file = BufferedInputFile(file_content, filename=file_name)
+                
+                future = asyncio.run_coroutine_threadsafe(
+                    bot.send_document(chat_id=int(user_id), document=input_file, caption=f"Файл от поддержки по тикету #{ticket_id}"),
+                    loop
+                )
+                result = future.result(timeout=30)
+                
+                # Store media info in database
+                media_info = {
+                    "type": "document",
+                    "file_id": result.document.file_id,
+                    "file_name": file_name,
+                    "file_size": len(file_content),
+                    "mime_type": content_type
+                }
+                
+                add_support_message(
+                    ticket_id=ticket_id,
+                    sender='admin',
+                    content=f"Отправлен файл: {file_name}",
+                    media=media_info,
+                    media_group_id=None
+                )
+                
+                # Notify web panel
+                _emit_ticket_update(ticket_id, "ticket_message", {
+                    "ticket_id": ticket_id,
+                    "sender": "admin",
+                    "content": f"Отправлен файл: {file_name}",
+                    "media": media_info,
+                    "media_group_id": None,
+                    "created_at": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                })
+                
+                return jsonify({"ok": True, "file_id": result.document.file_id})
+                
+            except Exception as e:
+                logger.error(f"Error sending file to user: {e}")
+                return jsonify({"ok": False, "error": "send_failed"}), 500
+                
+        except Exception as e:
+            logger.error(f"Error uploading media: {e}")
+            return jsonify({"ok": False, "error": "internal_error"}), 500
 
     return flask_app
 

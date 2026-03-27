@@ -30,12 +30,20 @@ from shop_bot.data_manager.database import (
 logger = logging.getLogger(__name__)
 
 # SocketIO helper to notify web panel
+_socketio_instance = None
+
+def set_socketio_instance(sio):
+    """Set SocketIO instance from outside to avoid circular imports."""
+    global _socketio_instance
+    _socketio_instance = sio
+
 def emit_ticket_update(ticket_id: int, event_name: str, payload: dict):
     """Emit SocketIO event to update web panel in real-time."""
+    global _socketio_instance
+    if _socketio_instance is None:
+        return
     try:
-        # Import here to avoid circular imports
-        from shop_bot.webhook_server.app import socketio
-        socketio.emit(event_name, payload, room=f"ticket_{int(ticket_id)}")
+        _socketio_instance.emit(event_name, payload, room=f"ticket_{int(ticket_id)}")
     except Exception as e:
         logger.warning(f"Не удалось отправить SocketIO событие: {e}")
 
