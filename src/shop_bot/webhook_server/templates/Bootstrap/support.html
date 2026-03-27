@@ -204,7 +204,7 @@
     if (!table || !tbody || !offcanvasEl || !messagesEl || !chatForm || !chatInput) return;
 
     const offcanvas = window.bootstrap ? window.bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl) : null;
-    const socket = window.io ? window.io({ transports: ['websocket', 'polling'] }) : null;
+    const socket = window.io ? window.io({ transports: ['polling'] }) : null;
     let activeTicketId = null;
     let activeTicketStatus = 'open';
 
