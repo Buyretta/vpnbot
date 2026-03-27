@@ -332,6 +332,8 @@
     chatForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!activeTicketId || activeTicketStatus !== 'open') return;
+      // Small delay to ensure pasted content is captured
+      await new Promise(r => setTimeout(r, 10));
       const message = chatInput.value.trim();
       if (!message) return;
       chatInput.value = '';
@@ -437,7 +439,8 @@
       }
       if (e.key === 'Enter' && !e.shiftKey && document.activeElement === chatInput) {
         e.preventDefault();
-        chatForm.requestSubmit();
+        // Use submit() instead of requestSubmit() to ensure proper value capture
+        chatForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
       }
     });
 

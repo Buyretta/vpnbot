@@ -707,6 +707,11 @@ def run_migration():
                 logging.info(" -> Столбец 'media' успешно добавлен в 'support_messages'.")
             else:
                 logging.info(" -> Столбец 'media' уже существует в 'support_messages'.")
+            if 'media_group_id' not in sm_columns:
+                cursor.execute("ALTER TABLE support_messages ADD COLUMN media_group_id TEXT")
+                logging.info(" -> Столбец 'media_group_id' успешно добавлен в 'support_messages'.")
+            else:
+                logging.info(" -> Столбец 'media_group_id' уже существует в 'support_messages'.")
         else:
             logging.warning("Таблица 'support_messages' не найдена, пропускаю её миграцию.")
         
@@ -2287,13 +2292,14 @@ def create_support_ticket(user_id: int, subject: str | None = None) -> int | Non
         logging.error(f"Не удалось create support ticket for user {user_id}: {e}")
         return None
 
-def add_support_message(ticket_id: int, sender: str, content: str) -> int | None:
+def add_support_message(ticket_id: int, sender: str, content: str, media: dict | None = None, media_group_id: str | None = None) -> int | None:
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
+            media_json = json.dumps(media) if media else None
             cursor.execute(
-                "INSERT INTO support_messages (ticket_id, sender, content) VALUES (?, ?, ?)",
-                (ticket_id, sender, content)
+                "INSERT INTO support_messages (ticket_id, sender, content, media, media_group_id) VALUES (?, ?, ?, ?, ?)",
+                (ticket_id, sender, content, media_json, media_group_id)
             )
             cursor.execute(
                 "UPDATE support_tickets SET updated_at = CURRENT_TIMESTAMP WHERE ticket_id = ?",

@@ -1,4 +1,5 @@
 import logging
+import json
 from aiogram import Bot, Router, F, types, html
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
@@ -26,6 +27,114 @@ from shop_bot.data_manager.database import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Predefined support topics
+SUPPORT_TOPICS = [
+    ("connection", "Проблема с подключением"),
+    ("speed", "Низкая скорость"),
+    ("payment", "Вопрос по оплате"),
+    ("key", "Проблема с ключом"),
+    ("refund", "Возврат средств"),
+    ("other", "Другое (свой вариант)"),
+]
+
+# Topic colors for admin panel (CSS classes)
+TOPIC_COLORS = {
+    "connection": "danger",
+    "speed": "warning",
+    "payment": "success",
+    "key": "info",
+    "refund": "secondary",
+    "other": "primary",
+}
+
+
+def extract_media_info(message: types.Message) -> dict | None:
+    """Extract media information from a Telegram message."""
+    media_info = None
+    
+    if message.photo:
+        # Get the largest photo
+        photo = message.photo[-1]
+        media_info = {
+            "type": "photo",
+            "file_id": photo.file_id,
+            "file_unique_id": photo.file_unique_id,
+            "width": photo.width,
+            "height": photo.height,
+            "file_size": photo.file_size,
+        }
+    elif message.video:
+        video = message.video
+        media_info = {
+            "type": "video",
+            "file_id": video.file_id,
+            "file_unique_id": video.file_unique_id,
+            "width": video.width,
+            "height": video.height,
+            "duration": video.duration,
+            "file_size": video.file_size,
+            "mime_type": video.mime_type,
+        }
+    elif message.document:
+        doc = message.document
+        media_info = {
+            "type": "document",
+            "file_id": doc.file_id,
+            "file_unique_id": doc.file_unique_id,
+            "file_name": doc.file_name,
+            "file_size": doc.file_size,
+            "mime_type": doc.mime_type,
+        }
+    elif message.audio:
+        audio = message.audio
+        media_info = {
+            "type": "audio",
+            "file_id": audio.file_id,
+            "file_unique_id": audio.file_unique_id,
+            "duration": audio.duration,
+            "performer": audio.performer,
+            "title": audio.title,
+            "file_size": audio.file_size,
+            "mime_type": audio.mime_type,
+        }
+    elif message.voice:
+        voice = message.voice
+        media_info = {
+            "type": "voice",
+            "file_id": voice.file_id,
+            "file_unique_id": voice.file_unique_id,
+            "duration": voice.duration,
+            "file_size": voice.file_size,
+            "mime_type": voice.mime_type,
+        }
+    elif message.video_note:
+        vn = message.video_note
+        media_info = {
+            "type": "video_note",
+            "file_id": vn.file_id,
+            "file_unique_id": vn.file_unique_id,
+            "length": vn.length,
+            "duration": vn.duration,
+            "file_size": vn.file_size,
+        }
+    
+    return media_info
+
+
+def get_topic_display(subject: str) -> tuple[str, str]:
+    """Get topic key and display name from subject.
+    Returns (topic_key, display_text).
+    """
+    if not subject:
+        return "other", "Без темы"
+    
+    # Check if subject starts with a topic prefix
+    for topic_key, topic_name in SUPPORT_TOPICS:
+        if subject.startswith(f"[{topic_key}] ") or subject.startswith(f"[{topic_key}]"):
+            return topic_key, topic_name
+    
+    return "other", subject
 
 class SupportDialog(StatesGroup):
     waiting_for_subject = State()
