@@ -575,6 +575,17 @@
             credentials: 'same-origin',
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
           });
+          
+          // Check if response is JSON
+          const contentType = resp.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            // Server returned HTML instead of JSON (likely an error page)
+            const text = await resp.text();
+            console.error('Server returned non-JSON response:', text);
+            alert('Ошибка сервера при загрузке файла. Проверьте консоль для деталей.');
+            return;
+          }
+          
           const data = await resp.json();
           if (data.ok) {
             await loadTicket(activeTicketId);
@@ -582,6 +593,7 @@
             alert('Не удалось загрузить файл: ' + (data.error || 'unknown'));
           }
         } catch (err) {
+          console.error('Upload error:', err);
           alert('Ошибка загрузки файла: ' + err.message);
         }
         mediaInput.value = '';

@@ -132,14 +132,17 @@ def create_webhook_app(bot_controller_instance):
     # Background thread to process socket emits from other threads
     def _socket_emit_worker():
         """Process socket emissions from queue (cross-thread safe)."""
+        logger.info("Socket emit worker thread started")
         while True:
             try:
                 item = _socket_emit_queue.get(timeout=1.0)
                 if item is None:
                     continue
                 event_name, payload, room = item
+                logger.debug(f"Socket emit worker: processing {event_name} to room {room}")
                 try:
                     socketio.emit(event_name, payload, room=room)
+                    logger.debug(f"Socket emit worker: successfully sent {event_name}")
                 except Exception as e:
                     logger.warning(f"Socket emit error: {e}")
             except queue.Empty:
@@ -1881,6 +1884,15 @@ def create_webhook_app(bot_controller_instance):
         common_data = get_common_template_data()
         return render_template_with_theme('ticket.html', ticket=ticket, messages=messages, **common_data)
 
+    def safe_parse_media(media_str):
+        """Safely parse media JSON field."""
+        if not media_str:
+            return None
+        try:
+            return json.loads(media_str)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
     @flask_app.route('/support/<int:ticket_id>/messages.json')
     @login_required
     def support_ticket_messages_api(ticket_id):
@@ -1892,6 +1904,8 @@ def create_webhook_app(bot_controller_instance):
             {
                 "sender": m.get('sender'),
                 "content": m.get('content'),
+                "media": safe_parse_media(m.get('media')),
+                "media_group_id": m.get('media_group_id'),
                 "created_at": m.get('created_at')
             }
             for m in messages
@@ -1923,7 +1937,7 @@ def create_webhook_app(bot_controller_instance):
                     "sender": m.get('sender'),
                     "content": m.get('content'),
                     "created_at": m.get('created_at'),
-                    "media": json.loads(m.get('media')) if m.get('media') else None,
+                    "media": safe_parse_media(m.get('media')),
                     "media_group_id": m.get('media_group_id')
                 }
                 for m in messages
@@ -3015,6 +3029,7 @@ def create_webhook_app(bot_controller_instance):
 
     @flask_app.route('/api/telegram/file/<file_id>')
     @login_required
+    @csrf.exempt  # Media files don't need CSRF protection
     def telegram_file_proxy(file_id: str):
         """Proxy to download and serve Telegram files."""
         try:
@@ -3064,6 +3079,7 @@ def create_webhook_app(bot_controller_instance):
 
     @flask_app.route('/support/<int:ticket_id>/upload-media', methods=['POST'])
     @login_required
+    @csrf.exempt  # File upload via FormData doesn't include CSRF token
     def support_upload_media(ticket_id: int):
         """Upload media file for support ticket and send to user via Telegram."""
         try:
@@ -3158,6 +3174,7 @@ def create_webhook_app(bot_controller_instance):
                     }
                 
                 # Store media info in database
+                logger.info(f"Storing media info for ticket {ticket_id}: {media_info}")
                 add_support_message(
                     ticket_id=ticket_id,
                     sender='admin',
@@ -3165,6 +3182,7 @@ def create_webhook_app(bot_controller_instance):
                     media=media_info,
                     media_group_id=None
                 )
+                logger.info(f"Media info stored successfully for ticket {ticket_id}")
                 
                 # Mirror to forum if available
                 forum_chat_id = ticket.get('forum_chat_id')
