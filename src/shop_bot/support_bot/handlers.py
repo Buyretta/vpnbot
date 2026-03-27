@@ -172,6 +172,98 @@ def get_topic_display(subject: str) -> tuple[str, str]:
     
     return "other", subject
 
+def create_forum_topic_name(ticket_id: int, subject: str, author_tag: str) -> str:
+    """Generate forum topic name for ticket."""
+    topic_key, topic_name = get_topic_display(subject)
+    is_starred = subject.strip().startswith('⭐')
+    display_name = (subject.lstrip('⭐️ ').strip() if is_starred else subject)
+    trimmed = display_name[:40]
+    important_prefix = '🔴 Важно: ' if is_starred else ''
+    
+    if topic_key == "other" and not subject.strip():
+        return f"#{ticket_id} • от {author_tag}"
+    else:
+        return f"#{ticket_id} {important_prefix}{trimmed} • от {author_tag}"
+
+async def create_forum_topic_for_ticket(bot: Bot, ticket_id: int, ticket: dict, message: types.Message) -> tuple[str, int] | None:
+    """Create forum topic for ticket and return (forum_chat_id, thread_id)."""
+    support_forum_chat_id = get_setting("support_forum_chat_id")
+    if not support_forum_chat_id:
+        return None
+    
+    try:
+        chat_id = int(support_forum_chat_id)
+        author_tag = (
+            (message.from_user.username and f"@{message.from_user.username}")
+            or (message.from_user.full_name if message.from_user else None)
+            or str(message.from_user.id)
+        )
+        
+        topic_name = create_forum_topic_name(ticket_id, ticket.get('subject') or '', author_tag)
+        forum_topic = await bot.create_forum_topic(chat_id=chat_id, name=topic_name)
+        thread_id = forum_topic.message_thread_id
+        
+        update_ticket_thread_info(ticket_id, str(chat_id), int(thread_id))
+        
+        # Send header message
+        topic_key, topic_name = get_topic_display(ticket.get('subject') or '')
+        header = (
+            ("Новое обращение\n" if ticket.get('status') == 'open' else "Тред создан автоматически\n") +
+            f"Тикет: #{ticket_id}\n" +
+            f"Пользователь: @{message.from_user.username or message.from_user.full_name} (ID: {message.from_user.id})\n" +
+            f"Тема: {topic_name}"
+        )
+        await bot.send_message(chat_id=chat_id, text=header, message_thread_id=thread_id, reply_markup=_admin_actions_kb(ticket_id))
+        
+        return (str(chat_id), int(thread_id))
+    except Exception as e:
+        logger.warning(f"Не удалось создать форумную тему для тикета {ticket_id}: {e}")
+        return None
+
+async def mirror_message_to_forum(bot: Bot, ticket: dict, message: types.Message, content: str = None):
+    """Mirror message to forum topic."""
+    forum_chat_id = ticket.get('forum_chat_id')
+    thread_id = ticket.get('message_thread_id')
+    if not (forum_chat_id and thread_id):
+        return
+    
+    try:
+        if content:
+            await bot.send_message(
+                chat_id=int(forum_chat_id),
+                text=content,
+                message_thread_id=int(thread_id)
+            )
+        else:
+            await bot.copy_message(
+                chat_id=int(forum_chat_id),
+                from_chat_id=message.chat.id,
+                message_id=message.message_id,
+                message_thread_id=int(thread_id)
+            )
+    except Exception as e:
+        logger.warning(f"Не удалось отзеркалить сообщение в форум: {e}")
+
+async def send_message_to_user(bot: Bot, user_id: int, text: str, ticket_id: int = None):
+    """Send message to user with error handling."""
+    loop = None
+    try:
+        from flask import current_app
+        loop = current_app.config.get('EVENT_LOOP')
+    except:
+        pass
+    
+    if loop and loop.is_running():
+        try:
+            asyncio.run_coroutine_threadsafe(bot.send_message(int(user_id), text), loop)
+        except Exception as e:
+            logger.warning(f"Не удалось уведомить пользователя {user_id}: {e}")
+    else:
+        try:
+            await bot.send_message(int(user_id), text)
+        except Exception as e:
+            logger.warning(f"Не удалось уведомить пользователя {user_id}: {e}")
+
 class SupportDialog(StatesGroup):
     waiting_for_subject = State()
     waiting_for_message = State()
@@ -332,27 +424,22 @@ def get_support_router() -> Router:
     async def support_message_received(message: types.Message, state: FSMContext, bot: Bot):
         user_id = message.from_user.id
         data = await state.get_data()
-        raw_subject = (data.get("subject") or "").strip()
-        subject = raw_subject if raw_subject else "Обращение без темы"
+        subject = (data.get("subject") or "").strip() or "Обращение без темы"
         existing = _get_latest_open_ticket(user_id)
         created_new = False
+        
         # Extract media info if present
         media_info = extract_media_info(message)
         media_group_id = message.media_group_id
+        content = message.text or message.caption or ""
+        
         if existing:
             ticket_id = int(existing['ticket_id'])
-            add_support_message(
-                ticket_id, 
-                sender="user", 
-                content=(message.text or message.caption or ""),
-                media=media_info,
-                media_group_id=media_group_id
-            )
-            # Notify web panel via SocketIO
+            add_support_message(ticket_id, sender="user", content=content, media=media_info, media_group_id=media_group_id)
             emit_ticket_update(ticket_id, "ticket_message", {
                 "ticket_id": ticket_id,
                 "sender": "user",
-                "content": message.text or message.caption or "",
+                "content": content,
                 "media": media_info,
                 "media_group_id": media_group_id,
                 "created_at": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -364,106 +451,57 @@ def get_support_router() -> Router:
                 await message.answer("Не удалось создать обращение. Попробуйте позже.")
                 await state.clear()
                 return
-            add_support_message(
-                ticket_id, 
-                sender="user", 
-                content=(message.text or message.caption or ""),
-                media=media_info,
-                media_group_id=media_group_id
-            )
-            # Notify web panel via SocketIO
+            add_support_message(ticket_id, sender="user", content=content, media=media_info, media_group_id=media_group_id)
             emit_ticket_update(ticket_id, "ticket_message", {
                 "ticket_id": ticket_id,
                 "sender": "user",
-                "content": message.text or message.caption or "",
+                "content": content,
                 "media": media_info,
                 "media_group_id": media_group_id,
                 "created_at": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
             })
             ticket = get_ticket(ticket_id)
             created_new = True
-        support_forum_chat_id = get_setting("support_forum_chat_id")
-        thread_id = None
-        if support_forum_chat_id and not (ticket and ticket.get('message_thread_id')):
-            try:
-                chat_id = int(support_forum_chat_id)
-                author_tag = (
-                    (message.from_user.username and f"@{message.from_user.username}")
-                    or (message.from_user.full_name if message.from_user else None)
-                    or str(user_id)
-                )
-                subj_full = (subject or 'Обращение без темы')
-                is_star = subj_full.strip().startswith('⭐')
-                display_subj = (subj_full.lstrip('⭐️ ').strip() if is_star else subj_full)
-                trimmed_subject = display_subj[:40]
-                important_prefix = '🔴 Важно: ' if is_star else ''
-                topic_name = f"#{ticket_id} {important_prefix}{trimmed_subject} • от {author_tag}"
-                forum_topic = await bot.create_forum_topic(chat_id=chat_id, name=topic_name)
-                thread_id = forum_topic.message_thread_id
-                update_ticket_thread_info(ticket_id, str(chat_id), int(thread_id))
-                subj_display = (subject or '—')
-                header = (
-                    "🆘 Новое обращение\n"
-                    f"Тикет: #{ticket_id}\n"
-                    f"Пользователь: @{message.from_user.username or message.from_user.full_name} (ID: {user_id})\n"
-                    f"Тема: {subj_display} — от @{message.from_user.username or message.from_user.full_name} (ID: {user_id})\n\n"
-                    f"Сообщение:\n{message.text or ''}"
-                )
-                await bot.send_message(chat_id=chat_id, text=header, message_thread_id=thread_id, reply_markup=_admin_actions_kb(ticket_id))
-            except Exception as e:
-                logger.warning(f"Не удалось создать форумную тему или отправить сообщение для тикета {ticket_id}: {e}")
-        try:
-            ticket = get_ticket(ticket_id)
-            forum_chat_id = ticket and ticket.get('forum_chat_id')
-            thread_id = ticket and ticket.get('message_thread_id')
-            if forum_chat_id and thread_id:
-                username = (message.from_user.username and f"@{message.from_user.username}") or message.from_user.full_name or str(message.from_user.id)
-                await bot.send_message(
-                    chat_id=int(forum_chat_id),
-                    text=(
-                        f"🆕 Новое обращение от {username} (ID: {message.from_user.id}) по тикету #{ticket_id}:" if created_new
-                        else f"{message.text or message.caption or ''}"
-                    ),
-                    message_thread_id=int(thread_id)
-                )
-                await bot.copy_message(
-                    chat_id=int(forum_chat_id),
-                    from_chat_id=message.chat.id,
-                    message_id=message.message_id,
-                    message_thread_id=int(thread_id)
-                )
-        except Exception as e:
-            logger.warning(f"Не удалось отзеркалить сообщение пользователя в форум: {e}")
+        
+        # Create forum topic if needed
+        if created_new and ticket and not ticket.get('message_thread_id'):
+            forum_result = await create_forum_topic_for_ticket(bot, ticket_id, ticket, message)
+            if forum_result:
+                forum_chat_id, thread_id = forum_result
+                ticket = get_ticket(ticket_id)  # Refresh ticket data
+        
+        # Mirror message to forum
+        if ticket:
+            await mirror_message_to_forum(bot, ticket, message)
+        
         await state.clear()
+        
+        # Send confirmation to user
         if created_new:
             await message.answer(
-                f"✅ Обращение создано: #{ticket_id}. Мы ответим вам как можно скорее.",
+                f"Обращение создано: #{ticket_id}. Мы ответим вам как можно скорее.",
                 reply_markup=_user_main_reply_kb()
             )
-        else:
-            await message.answer(
-                f"✅ Сообщение отправлено.",
-                reply_markup=_user_main_reply_kb()
-            )
-        # Уведомить всех администраторов только при создании нового тикета
-        if created_new:
+            # Notify admins about new ticket
             try:
                 for aid in get_admin_ids():
                     try:
                         await bot.send_message(
                             int(aid),
-                            (
-                                "🆘 Новое обращение в поддержку\n"
-                                f"ID тикета: #{ticket_id}\n"
-                                f"От пользователя: @{message.from_user.username or message.from_user.full_name} (ID: {user_id})\n"
-                                f"Тема: {subject or '—'}\n\n"
-                                f"Сообщение:\n{message.text or ''}"
-                            )
+                            "Новое обращение в поддержку\n"
+                            f"ID тикета: #{ticket_id}\n"
+                            f"Пользователь: {message.from_user.full_name} (ID: {user_id})\n"
+                            f"Тема: {subject}"
                         )
                     except Exception:
                         pass
-            except Exception as e:
-                logger.warning(f"Не удалось уведомить администраторов о тикете {ticket_id}: {e}")
+            except Exception:
+                pass
+        else:
+            await message.answer(
+                "Сообщение отправлено.",
+                reply_markup=_user_main_reply_kb()
+            )
 
     @router.callback_query(F.data == "support_my_tickets")
     async def support_my_tickets_handler(callback: types.CallbackQuery):
