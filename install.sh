@@ -407,7 +407,7 @@ if [ "$IS_IP_ADDR" = false ]; then
      else
          echo -e "${WAIT} Получение SSL-сертификатов через acme.sh..."
          sudo systemctl stop nginx
-         if "$HOME/.acme.sh/acme.sh" --issue -d "$DOMAIN" --standalone --httpport 80 && \
+         if "$HOME/.acme.sh/acme.sh" --issue -d "$DOMAIN" --standalone --httpport 79 && \
             "$HOME/.acme.sh/acme.sh" --install-cert -d "$DOMAIN" --key-file "$CERT_PATH/privkey.pem" --fullchain-file "$CERT_PATH/fullchain.pem"; then
              echo -e "${CHECKMARK} SSL-сертификаты успешно получены."
          else
