@@ -31,7 +31,7 @@ read_input_yn() {
     echo
 }
 
-REPO_URL="https://github.com/dottenv/3xshop.git"
+REPO_URL="https://github.com/Buyretta/vpnbot.git"
 PROJECT_DIR="3xshop"
 NGINX_CONF_FILE="/etc/nginx/sites-available/${PROJECT_DIR}.conf"
 ACTION_CHOICE=""
